@@ -626,9 +626,9 @@
       "postPersonal": "Estos son todos mis empleados de IA, trabajando en Houston.\n\ngethouston.ai",
       "altText": "Organigrama de {{name}}: sus personas y los empleados de IA que trabajan con ellas.",
       "completion": {
-        "connectedTitle": "LinkedIn está conectado",
-        "connectedBody": "Vuelve a tu publicación para compartirla. Si esto se abrió en una pestaña nueva, puedes cerrarla.",
-        "unredeemableTitle": "LinkedIn no se conectó",
+        "connectedTitle": "LinkedIn está conectado.",
+        "connectedBody": "Ya puedes publicar tu organigrama. Si esto se abrió en una pestaña nueva, puedes cerrarla.",
+        "unredeemableTitle": "LinkedIn no se conectó.",
         "unredeemableBody": "Ese enlace venció o ya se usó. Vuelve a conectar LinkedIn desde la ventana para compartir."
       },
       "returnPage": {

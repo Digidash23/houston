@@ -626,9 +626,9 @@
       "postPersonal": "These are all my AI Employees, working in Houston.\n\ngethouston.ai",
       "altText": "Org chart of {{name}}: its people and the AI Employees who work with them.",
       "completion": {
-        "connectedTitle": "LinkedIn is connected",
-        "connectedBody": "Go back to your post to share it. If this opened in a new tab, you can close it.",
-        "unredeemableTitle": "LinkedIn did not connect",
+        "connectedTitle": "LinkedIn is connected.",
+        "connectedBody": "You can post your org chart now. If this opened in a new tab, you can close it.",
+        "unredeemableTitle": "LinkedIn did not connect.",
         "unredeemableBody": "That link has expired or was already used. Connect LinkedIn again from the share dialog."
       },
       "returnPage": {
