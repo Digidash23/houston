@@ -20,7 +20,8 @@ export function FallbackLink({
   command: string;
   /** Placement only (alignment, spacing, text size). */
   className?: string;
-  children: ReactNode;
+  /** Absent when a `<Trans>` slot supplies the words. */
+  children?: ReactNode;
 }) {
   return (
     <a

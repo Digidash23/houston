@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { PRIVACY_URL, TERMS_URL } from "../../lib/legal-urls";
 import { tauriSystem } from "../../lib/tauri";
 
 /** Open an external URL in the system browser (matches sign-in-screen). */
@@ -18,7 +19,7 @@ export function LegalFooter() {
     <div className="flex items-center justify-center gap-3 py-6 text-xs text-ink-muted">
       <button
         type="button"
-        onClick={openExternal("https://gethouston.ai/privacy")}
+        onClick={openExternal(PRIVACY_URL)}
         className={LEGAL_LINK}
       >
         {t("legal.privacy")}
@@ -26,7 +27,7 @@ export function LegalFooter() {
       <span aria-hidden="true">·</span>
       <button
         type="button"
-        onClick={openExternal("https://gethouston.ai/terms")}
+        onClick={openExternal(TERMS_URL)}
         className={LEGAL_LINK}
       >
         {t("legal.terms")}

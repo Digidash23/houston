@@ -89,3 +89,19 @@ export function primaryVariant(step: ShareStep): PrimaryVariant {
   if (step.kind !== "posted") return PRIMARY_VARIANT[step.kind];
   return PRIMARY_VARIANT.posted[step.opened ? "opened" : "closed"];
 }
+
+/**
+ * The steps that post through LinkedIn's API. Its terms allow pre-filled words
+ * there only beside our privacy notice; the share sheet and copy and paste
+ * leave the words to LinkedIn.
+ */
+const POSTS_THROUGH_API = {
+  share: false,
+  checking: true,
+  connect: true,
+  post: true,
+  posted: true,
+} as const satisfies Record<ShareStep["kind"], boolean>;
+
+export const postsThroughApi = (step: ShareStep): boolean =>
+  POSTS_THROUGH_API[step.kind];

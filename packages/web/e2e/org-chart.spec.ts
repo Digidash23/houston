@@ -334,6 +334,10 @@ test("the org chart draws its people and AI Employees, and shares an image from 
   await expect(
     dialog.getByRole("img", { name: "Your org chart as an image" }),
   ).toBeVisible();
+  // Copy and paste leaves the words to LinkedIn: no API terms, no notice.
+  await expect(dialog.getByText(/subject to our Privacy Policy/)).toHaveCount(
+    0,
+  );
 
   // Share on LinkedIn: the composer opens with the post written in.
   const opening = page.waitForEvent("popup");

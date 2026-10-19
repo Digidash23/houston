@@ -55,7 +55,7 @@ function StepButton({
 }
 
 const linkedInIcon = <Linkedin className="size-4" />;
-export const INLINE_LINK =
+const INLINE_LINK =
   "rounded-sm font-medium text-ink underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50";
 const spinner = <Spinner aria-hidden />;
 
