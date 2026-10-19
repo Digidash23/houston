@@ -78,6 +78,7 @@ export function OrgChartShareDialog({
                       <FallbackLink
                         href={PRIVACY_URL}
                         command="open_privacy_policy"
+                        tone="ink"
                       />
                     ),
                   }}
