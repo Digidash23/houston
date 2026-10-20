@@ -139,7 +139,8 @@
       "singleOrg": "{{name}} stays free. Other organizations are {{price}} per member per month.",
       "singleOrgPayer": "Your subscription will pay for {{name}}, at {{price}} per member per month.",
       "choose": "Choose your free organization",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "label": "Pricing change"
     },
     "picked": {
       "lead": "{{name}} stays free.",

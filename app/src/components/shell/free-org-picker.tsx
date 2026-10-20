@@ -1,5 +1,11 @@
 import type { BillingChoice, BillingChoicePick } from "@houston/engine-adapter";
-import { choosesPaidOrg, defaultFreeOrg, defaultPaidOrg } from "@houston/sdk";
+import {
+  choosesPaidOrg,
+  defaultFreeOrg,
+  defaultPaidOrg,
+  type PickerState,
+  reconcilePick,
+} from "@houston/sdk";
 import {
   Dialog,
   DialogCloseButton,
@@ -33,16 +39,27 @@ function PickerBody({
 }) {
   const save = useSetBillingChoice();
   const payer = choosesPaidOrg(choice);
-  const [step, setStep] = useState<"free" | "paid">("free");
-  const [free, setFree] = useState(() => defaultFreeOrg(choice) ?? "");
-  const [paid, setPaid] = useState<string | null>(null);
+  const [state, setState] = useState<PickerState>(() => ({
+    step: "free",
+    free: defaultFreeOrg(choice),
+    paid: null,
+  }));
+  // Valid against the latest choice, which a refusal's refetch may change.
+  const { step, free, paid } = reconcilePick(choice, state);
+  const update = (patch: Partial<PickerState>) =>
+    setState({ step, free, paid, ...patch });
   const Title = mobile ? SheetTitle : DialogTitle;
-  const title = (text: string) => <Title className={TITLE_CLASS}>{text}</Title>;
+  const title = (text: string, id: string) => (
+    <Title id={id} className={TITLE_CLASS}>
+      {text}
+    </Title>
+  );
 
   const submit = (pick: BillingChoicePick) =>
     save.mutate(pick, {
       onSuccess: (outcome) => {
         if (outcome.kind === "saved") onDone();
+        if (outcome.kind === "not_payer") update({ step: "free", paid: null });
       },
     });
 
@@ -50,31 +67,32 @@ function PickerBody({
     return (
       <PaidStep
         choice={choice}
-        freeSlug={free}
+        freeSlug={free ?? ""}
         selected={paid ?? ""}
-        onSelect={setPaid}
+        onSelect={(slug) => update({ paid: slug })}
         busy={save.isPending}
         title={title}
-        onBack={() => setStep("free")}
+        onBack={() => update({ step: "free" })}
         onConfirm={() =>
-          paid && submit({ freeOrgSlug: free, paidOrgSlug: paid })
+          free && paid && submit({ freeOrgSlug: free, paidOrgSlug: paid })
         }
       />
     );
   return (
     <FreeStep
       choice={choice}
-      selected={free}
-      onSelect={setFree}
+      selected={free ?? ""}
+      onSelect={(slug) => update({ free: slug })}
       step={payer ? 1 : undefined}
       busy={save.isPending}
       title={title}
       onConfirm={() => {
+        if (!free) return;
         if (!payer) return submit({ freeOrgSlug: free });
-        setPaid((current) =>
-          current && current !== free ? current : defaultPaidOrg(choice, free),
-        );
-        setStep("paid");
+        update({
+          step: "paid",
+          paid: paid && paid !== free ? paid : defaultPaidOrg(choice, free),
+        });
       }}
     />
   );
@@ -85,10 +103,13 @@ export function FreeOrgPicker({
   choice,
   open,
   onOpenChange,
+  returnFocus,
 }: {
   choice: BillingChoice;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Where focus lands on close: the frame has no trigger of its own. */
+  returnFocus: () => void;
 }) {
   const { t } = useTranslation("plan");
   const mobile = useIsMobile();
@@ -105,6 +126,10 @@ export function FreeOrgPicker({
       />
     </>
   );
+  const closeFocus = (event: Event) => {
+    event.preventDefault();
+    returnFocus();
+  };
   if (mobile)
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -112,7 +137,8 @@ export function FreeOrgPicker({
           side="bottom"
           showCloseButton={false}
           aria-describedby={undefined}
-          className="max-h-[90dvh] gap-4 overflow-y-auto rounded-t-2xl border-line/50 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
+          onCloseAutoFocus={closeFocus}
+          className="max-h-[90dvh] gap-4 overflow-y-auto rounded-t-2xl border-line/50 p-5 pb-[calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px))+1.25rem)]"
         >
           {body}
         </SheetContent>
@@ -123,7 +149,8 @@ export function FreeOrgPicker({
       <DialogContent
         showCloseButton={false}
         aria-describedby={undefined}
-        className="gap-5 sm:max-w-[30rem]"
+        onCloseAutoFocus={closeFocus}
+        className="max-h-[calc(100dvh-2rem)] gap-5 overflow-y-auto sm:max-w-[30rem]"
       >
         {body}
       </DialogContent>

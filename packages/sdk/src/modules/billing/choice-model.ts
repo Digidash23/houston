@@ -143,22 +143,6 @@ export function pickerRows(choice: BillingChoice): PickerRow[] {
   }));
 }
 
-/** The org the picker starts on: the stored pick, else the busiest. */
-export function defaultFreeOrg(choice: BillingChoice): string | null {
-  const stored = choice.orgs.find((org) => org.slug === choice.freeOrgSlug);
-  return stored?.slug ?? pickerRows(choice)[0]?.org.slug ?? null;
-}
-
-/** The org the payer step starts on: the stored paid org, else the busiest other. */
-export function defaultPaidOrg(
-  choice: BillingChoice,
-  freeOrgSlug: string,
-): string | null {
-  const rows = pickerRows(choice).filter((row) => row.org.slug !== freeOrgSlug);
-  const stored = rows.find((row) => row.org.slug === choice.paidOrgSlug);
-  return (stored ?? rows[0])?.org.slug ?? null;
-}
-
 export interface PayerTotals {
   /** What the subscription costs today. */
   today: string;

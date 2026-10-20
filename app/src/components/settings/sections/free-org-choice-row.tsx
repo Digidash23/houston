@@ -4,9 +4,12 @@ import {
   formatCutoverDay,
 } from "@houston/sdk";
 import { Button, Card } from "@houston-ai/core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useBillingChoice } from "../../../hooks/queries/use-billing-choice";
+import {
+  useBillingChoice,
+  useChoiceNow,
+} from "../../../hooks/queries/use-billing-choice";
 import { FreeOrgPicker } from "../../shell/free-org-picker";
 import { useOrgName } from "../../shell/free-org-picker-rows";
 
@@ -19,7 +22,9 @@ export function FreeOrgChoiceRow() {
   const { data: choice } = useBillingChoice();
   const orgName = useOrgName();
   const [open, setOpen] = useState(false);
-  if (!canChangeChoice(choice, Date.now())) return null;
+  const opener = useRef<HTMLButtonElement>(null);
+  const now = useChoiceNow(choice);
+  if (!canChangeChoice(choice, now)) return null;
   const free = choice.orgs.find((org) => org.slug === choice.freeOrgSlug);
   return (
     <Card className="gap-0 px-5 py-5 md:px-6">
@@ -38,6 +43,7 @@ export function FreeOrgChoiceRow() {
           </p>
         </div>
         <Button
+          ref={opener}
           variant="outline"
           className="self-start md:self-auto"
           onClick={() => setOpen(true)}
@@ -45,7 +51,12 @@ export function FreeOrgChoiceRow() {
           {free ? t("choice.settings.change") : t("choice.settings.choose")}
         </Button>
       </div>
-      <FreeOrgPicker choice={choice} open={open} onOpenChange={setOpen} />
+      <FreeOrgPicker
+        choice={choice}
+        open={open}
+        onOpenChange={setOpen}
+        returnFocus={() => opener.current?.focus()}
+      />
     </Card>
   );
 }

@@ -69,6 +69,16 @@ describe("reading the choice", () => {
     await expect(missing.sdk.billing.getChoice()).rejects.toThrow();
   });
 
+  it("reads a payer or state a later gateway adds without failing", async () => {
+    const { sdk } = makeSdk(() =>
+      json({ ...STORED, payer: "family", state: "migrating" }),
+    );
+    expect(await sdk.billing.getChoice()).toMatchObject({
+      payer: null,
+      state: "applied",
+    });
+  });
+
   it("throws every other failure with its status", async () => {
     const { sdk } = makeSdk(() => json({ error: "boom" }, 500));
     const err = await sdk.billing.getChoice().catch((e: unknown) => e);

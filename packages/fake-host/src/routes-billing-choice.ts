@@ -9,13 +9,17 @@ import { json, noContent } from "./http";
 import * as state from "./state-billing-choice";
 
 const STATUS = { not_owner: 409, not_payer: 409, same_org: 400 } as const;
+const PICK_KEYS = new Set(["freeOrgSlug", "paidOrgSlug"]);
 
+/** The pick, validated the way the gateway does, or null for `invalid_request`. */
 function pickOf(body: Record<string, unknown> | undefined) {
-  const { freeOrgSlug, paidOrgSlug } = body ?? {};
-  if (typeof freeOrgSlug !== "string") return null;
-  return typeof paidOrgSlug === "string"
-    ? ({ freeOrgSlug, paidOrgSlug } satisfies BillingChoicePick)
-    : ({ freeOrgSlug } satisfies BillingChoicePick);
+  if (!body || Object.keys(body).some((k) => !PICK_KEYS.has(k))) return null;
+  const { freeOrgSlug, paidOrgSlug } = body;
+  if (typeof freeOrgSlug !== "string" || freeOrgSlug === "") return null;
+  if (paidOrgSlug === undefined || paidOrgSlug === null)
+    return { freeOrgSlug } satisfies BillingChoicePick;
+  if (typeof paidOrgSlug !== "string" || paidOrgSlug === "") return null;
+  return { freeOrgSlug, paidOrgSlug } satisfies BillingChoicePick;
 }
 
 /** Route a billing-choice request, or return `undefined` to fall through. */
@@ -37,7 +41,7 @@ export function handleBillingChoiceRoutes(
       state.recordBillingChoiceCall("set", body);
       const pick = pickOf(body);
       if (!pick)
-        return json({ error: "bad request", code: "bad_request" }, 400);
+        return json({ error: "invalid request", code: "invalid_request" }, 400);
       const refusal = state.refuseBillingPick(choice, pick);
       if (refusal)
         return json({ error: refusal, code: refusal }, STATUS[refusal]);

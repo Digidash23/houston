@@ -47,8 +47,10 @@ export type BillingChoiceOrg = z.infer<typeof billingChoiceOrgSchema>;
 export const billingChoiceSchema = z.object({
   /** True when the caller owns more than one org. */
   needed: z.boolean(),
-  payer: z.enum(BILLING_CHOICE_PAYERS).nullable(),
-  state: z.enum(["pending", "applied"]),
+  // A value a later gateway adds must not break a shipped client: an unknown
+  // payer reads as none, an unknown state as applied (nothing left to pick).
+  payer: z.enum(BILLING_CHOICE_PAYERS).nullable().catch(null),
+  state: z.enum(["pending", "applied"]).catch("applied"),
   provisional: z.boolean(),
   cutoverAt: instant,
   changeableUntil: instant.nullable(),

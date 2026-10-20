@@ -117,6 +117,20 @@ test("a refused pick shows its own copy and keeps the picker open", async ({
   await expect(picker(page)).toBeVisible();
 });
 
+test("closing the picker puts focus back on the bar", async ({ page }) => {
+  await armCapabilities(SPACES_OWNER_CAPS);
+  await armChoice(ownerChoice());
+  await page.goto("/");
+  const choose = banner(page).getByRole("button", {
+    name: "Choose your free organization",
+  });
+  await choose.click();
+  await expect(picker(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(picker(page)).toBeHidden();
+  await expect(choose).toBeFocused();
+});
+
 test("dismissing hides the bar for good, and Billing still opens the picker", async ({
   page,
 }) => {

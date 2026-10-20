@@ -139,7 +139,8 @@
       "singleOrg": "{{name}} sigue gratis. Las demás organizaciones cuestan {{price}} por miembro al mes.",
       "singleOrgPayer": "Tu suscripción pagará {{name}}, a {{price}} por miembro al mes.",
       "choose": "Elige tu organización gratis",
-      "dismiss": "Descartar"
+      "dismiss": "Descartar",
+      "label": "Cambio de precios"
     },
     "picked": {
       "lead": "{{name}} sigue gratis.",
@@ -178,8 +179,8 @@
     },
     "refused": {
       "not_owner": {
-        "title": "No eres propietario de esa organización",
-        "body": "Solo su propietario puede elegir por ella. Elige una de las tuyas."
+        "title": "Esa organización no es tuya",
+        "body": "Solo la cuenta propietaria puede elegir por ella. Elige una de las tuyas."
       },
       "not_payer": {
         "title": "No hay una suscripción para mover",

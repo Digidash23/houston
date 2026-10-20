@@ -7,7 +7,7 @@ import {
 } from "@houston/sdk";
 import { Button } from "@houston-ai/core";
 import { ChevronLeft, Info } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FreeOrgRow,
@@ -25,12 +25,13 @@ interface StepProps {
   /** Set for a payer: the step this is, of two. */
   step?: 1 | 2;
   busy: boolean;
-  /** Renders the frame's title element (Dialog or Sheet). */
-  title: (text: string) => ReactNode;
+  /** Renders the frame's title element (Dialog or Sheet) with this id. */
+  title: (text: string, id: string) => ReactNode;
 }
 
 export function FreeStep(props: StepProps & { onConfirm: () => void }) {
   const { t, i18n } = useTranslation("plan");
+  const titleId = useId();
   const orgName = useOrgName();
   const rows = pickerRows(props.choice);
   const picked = rows.find((row) => row.org.slug === props.selected)?.org;
@@ -42,12 +43,16 @@ export function FreeStep(props: StepProps & { onConfirm: () => void }) {
     <>
       <div className="pr-7">
         <StepLabel step={props.step} />
-        {props.title(t("choice.picker.title"))}
+        {props.title(t("choice.picker.title"), titleId)}
         <p className="mt-2 text-sm leading-relaxed text-hover-text">
           {t("choice.picker.body", { limit: FREE_ORG_WEEKLY_MESSAGES })}
         </p>
       </div>
-      <div role="radiogroup" className="flex flex-col gap-2">
+      <div
+        role="radiogroup"
+        aria-labelledby={titleId}
+        className="flex flex-col gap-2"
+      >
         {rows.map(({ org, mostActive }) => (
           <OrgRadio
             key={org.slug}
@@ -101,6 +106,7 @@ export function PaidStep(
   },
 ) {
   const { t, i18n } = useTranslation("plan");
+  const titleId = useId();
   const orgName = useOrgName();
   const rows = pickerRows(props.choice);
   const free = rows.find((row) => row.org.slug === props.freeSlug)?.org;
@@ -113,12 +119,16 @@ export function PaidStep(
     <>
       <div className="pr-7">
         <StepLabel step={2} />
-        {props.title(t("choice.payer.title"))}
+        {props.title(t("choice.payer.title"), titleId)}
         <p className="mt-2 text-sm leading-relaxed text-hover-text">
           {t("choice.payer.body")}
         </p>
       </div>
-      <div role="radiogroup" className="flex flex-col gap-2">
+      <div
+        role="radiogroup"
+        aria-labelledby={titleId}
+        className="flex flex-col gap-2"
+      >
         {paid.map(({ org }) => {
           const price = payerTotals(props.choice, org.slug, i18n.language);
           return (

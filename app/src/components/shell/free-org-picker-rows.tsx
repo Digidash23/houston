@@ -98,10 +98,7 @@ export function FreeOrgRow({
   tag: string;
 }) {
   return (
-    <div
-      aria-disabled
-      className="flex items-center gap-3 rounded-xl bg-chip px-3.5 py-3"
-    >
+    <div className="flex items-center gap-3 rounded-xl bg-chip px-3.5 py-3">
       <Glyph name={name} muted />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2 text-sm font-medium text-ink-muted">

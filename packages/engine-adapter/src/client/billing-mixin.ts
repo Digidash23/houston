@@ -59,7 +59,9 @@ export function BillingMixin<TBase extends BaseCtor>(Base: TBase) {
       );
     }
     // The free-org pick is account-wide and cloud-only: off-cloud there is
-    // nothing to pick, so the read is null like the summary above.
+    // nothing to pick, so the read is null like the summary above. Unlike the
+    // summary, the gateway-without-the-route 404 is the SDK's own answer
+    // (null), so the AI Manager reads the same thing the app does.
     async getBillingChoice(): Promise<BillingChoice | null> {
       if (!this.ctx.cp) return null;
       return viaSdk("/v1/me/billing-choice", () =>

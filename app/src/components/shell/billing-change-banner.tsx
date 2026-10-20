@@ -1,11 +1,12 @@
 import type { BillingChoice } from "@houston/engine-adapter";
-import { choiceNotice } from "@houston/sdk";
+import { canChangeChoice, choiceNotice } from "@houston/sdk";
 import { Button, cn } from "@houston-ai/core";
 import { CalendarDays, Check, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useBillingChoice,
+  useChoiceNow,
   useDismissBillingChoice,
 } from "../../hooks/queries/use-billing-choice";
 import { orgSlugFromWorkspaceId } from "../../lib/space-id";
@@ -23,19 +24,39 @@ export function BillingChangeBanner() {
   const { data: choice } = useBillingChoice();
   const current = useWorkspaceStore((s) => s.current);
   const { i18n } = useTranslation("plan");
+  const now = useChoiceNow(choice);
   const notice = choiceNotice(choice, {
-    now: Date.now(),
+    now,
     activeOrgSlug: current ? orgSlugFromWorkspaceId(current.id) : null,
     locale: i18n.language,
   });
   if (!choice || notice.kind === "hidden") return null;
-  return <Bar notice={notice} choice={choice} />;
+  return (
+    <Bar
+      notice={notice}
+      choice={choice}
+      changeable={canChangeChoice(choice, now)}
+    />
+  );
 }
 
-function Bar({ notice, choice }: { notice: Shown; choice: BillingChoice }) {
+function Bar({
+  notice,
+  choice,
+  changeable,
+}: {
+  notice: Shown;
+  choice: BillingChoice;
+  changeable: boolean;
+}) {
   const { t } = useTranslation("plan");
   const dismiss = useDismissBillingChoice();
   const [picking, setPicking] = useState(false);
+  const bar = useRef<HTMLElement>(null);
+  // Radix runs this once the frame has closed, after a save has already
+  // swapped Choose for Change, so the bar's first button is the right one.
+  const returnFocus = () =>
+    bar.current?.querySelector<HTMLButtonElement>("button")?.focus();
   const text = useNoticeText(notice, choice);
   const done = notice.kind === "picked";
   const action =
@@ -47,7 +68,7 @@ function Bar({ notice, choice }: { notice: Shown; choice: BillingChoice }) {
       >
         {t("choice.notice.choose")}
       </Button>
-    ) : done ? (
+    ) : done && changeable ? (
       <Button
         size="sm"
         variant="ghost"
@@ -59,8 +80,9 @@ function Bar({ notice, choice }: { notice: Shown; choice: BillingChoice }) {
     ) : null;
   return (
     <>
-      <div
-        role="status"
+      <section
+        ref={bar}
+        aria-label={t("choice.notice.label")}
         data-testid="billing-change-banner"
         className={cn(
           "grid shrink-0 items-start gap-x-2.5 gap-y-2 border-b border-line text-[13px] leading-normal motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 motion-safe:duration-200 md:flex md:items-center md:gap-3",
@@ -98,12 +120,13 @@ function Bar({ notice, choice }: { notice: Shown; choice: BillingChoice }) {
         >
           <X aria-hidden className="size-4" />
         </Button>
-      </div>
+      </section>
       {(notice.kind === "pick" || done) && (
         <FreeOrgPicker
           choice={choice}
           open={picking}
           onOpenChange={setPicking}
+          returnFocus={returnFocus}
         />
       )}
     </>

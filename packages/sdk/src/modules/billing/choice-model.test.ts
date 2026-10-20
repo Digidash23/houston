@@ -11,8 +11,6 @@ import {
 import {
   canChangeChoice,
   choiceNotice,
-  defaultFreeOrg,
-  defaultPaidOrg,
   formatCutoverDate,
   payerTotals,
   pickerRows,
@@ -153,20 +151,6 @@ describe("pickerRows", () => {
   it("tags nothing when no org has messages", () => {
     const rows = pickerRows(choice({ orgs: [org(), org({ slug: "b" })] }));
     expect(rows.every((row) => !row.mostActive)).toBe(true);
-  });
-
-  it("starts on the stored pick, else the busiest", () => {
-    expect(defaultFreeOrg(choice())).toBe(LA_FILA.slug);
-    expect(defaultFreeOrg(choice({ freeOrgSlug: PERSONAL.slug }))).toBe(
-      PERSONAL.slug,
-    );
-    expect(defaultPaidOrg(choice(), LA_FILA.slug)).toBe(INNOVA.slug);
-    expect(
-      defaultPaidOrg(choice({ paidOrgSlug: PERSONAL.slug }), LA_FILA.slug),
-    ).toBe(PERSONAL.slug);
-    expect(
-      defaultPaidOrg(choice({ paidOrgSlug: LA_FILA.slug }), LA_FILA.slug),
-    ).toBe(INNOVA.slug);
   });
 });
 

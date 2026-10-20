@@ -3,6 +3,7 @@ import type {
   BillingChoicePick,
   BillingChoiceSave,
 } from "@houston/engine-adapter";
+import { nextChoiceDeadline } from "@houston/sdk";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -67,14 +68,42 @@ export function useSetBillingChoice() {
   });
 }
 
-/** Hide the announcement now; the gateway keeps it hidden on every device. */
+/**
+ * Hide the announcement now; the gateway keeps it hidden on every device. A
+ * failed dismissal (reported by the engine call) brings the bar back so the
+ * person can try again.
+ */
 export function useDismissBillingChoice() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: tauriOrg.dismissBillingChoiceNotice,
-    onMutate: () =>
+    onMutate: () => {
+      const before = client.getQueryData<Cached>(queryKeys.billingChoice());
       client.setQueryData(queryKeys.billingChoice(), (choice: Cached) =>
         choice ? { ...choice, noticeDismissed: true } : choice,
-      ),
+      );
+      return { before };
+    },
+    onError: (_error, _vars, context) =>
+      client.setQueryData(queryKeys.billingChoice(), context?.before),
   });
+}
+
+/**
+ * The time a choice surface renders against, re-read when the change window
+ * or the cutover passes so an open session never outlives either.
+ */
+export function useChoiceNow(choice: Cached): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const wait = nextChoiceDeadline(choice, now);
+    if (wait === null) return;
+    // setTimeout caps at 2^31-1 ms; a later deadline re-arms on wake.
+    const id = setTimeout(
+      () => setNow(Date.now()),
+      Math.min(wait, 2 ** 31 - 1),
+    );
+    return () => clearTimeout(id);
+  }, [choice, now]);
+  return now;
 }
