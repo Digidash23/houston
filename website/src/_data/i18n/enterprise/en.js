@@ -31,30 +31,12 @@ export default {
       "Ours runs the daily work of companies in every industry.",
     ],
     industries: [
-      {
-        name: "Logistics",
-        alt: "Shipping containers stacked in a port, seen from above",
-      },
-      {
-        name: "Real Estate",
-        alt: "Houses around a cul-de-sac, seen from above",
-      },
-      {
-        name: "Retail",
-        alt: "Market stalls under red and blue canopies, seen from above",
-      },
-      {
-        name: "Banking",
-        alt: "A city's streets lit up at night, seen from above",
-      },
-      {
-        name: "Insurance",
-        alt: "A cloverleaf highway interchange, seen from above",
-      },
-      {
-        name: "Manufacturing",
-        alt: "Pipes and machinery on a factory roof, seen from above",
-      },
+      { name: "Logistics" },
+      { name: "Real Estate" },
+      { name: "Retail" },
+      { name: "Banking" },
+      { name: "Insurance" },
+      { name: "Manufacturing" },
     ],
   },
 
@@ -72,22 +54,10 @@ export default {
       "Almost none have the team to make them work.",
     ],
     cards: [
-      {
-        title: "No one owns it",
-        alt: "One car in an empty parking lot, seen from above",
-      },
-      {
-        title: "No one to build it",
-        alt: "Pallets of bricks and piles of sand on an empty site, seen from above",
-      },
-      {
-        title: "Nothing is connected",
-        alt: "A new roundabout whose roads end in sand, seen from above",
-      },
-      {
-        title: "Nobody follows through",
-        alt: "An unfinished site taken over by the forest, seen from above",
-      },
+      { title: "No one owns it" },
+      { title: "No one to build it" },
+      { title: "Nothing is connected" },
+      { title: "Nobody follows through" },
     ],
   },
 

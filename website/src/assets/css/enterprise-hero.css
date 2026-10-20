@@ -135,7 +135,7 @@
   }
 }
 
-/* ── Industries: six photographs, names only ─────────────────────────────── */
+/* ── Industries: six abstract tiles, names only ─────────────────────────── */
 /* The right column of the landing's split: two across, three down. */
 .ent-tiles {
   display: grid;
@@ -150,22 +150,19 @@
   background: #1c1c1c;
   isolation: isolate;
 }
-.ent-tile img {
+/* Film grain over the field, so it reads as light on a surface, not a flat
+   CSS gradient. */
+.ent-tile::before {
+  content: "";
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 1.2s var(--ease-entrance),
-    filter var(--dur-elegant) var(--ease-standard);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.ent-tile.is-on img {
-  transform: scale(1.04);
-}
-.ent-tiles.is-dim .ent-tile:not(.is-on) img {
-  filter: grayscale(1) brightness(0.72) contrast(1.05);
-}
-/* One scrim, lifting the name off the photo. */
+/* One scrim, lifting the name off the field. */
 .ent-tile::after {
   content: "";
   position: absolute;
@@ -174,9 +171,9 @@
   pointer-events: none;
   background: linear-gradient(
     to top,
-    rgba(10, 10, 10, 0.7),
-    rgba(10, 10, 10, 0.12) 48%,
-    rgba(10, 10, 10, 0) 64%
+    rgba(10, 10, 10, 0.42),
+    rgba(10, 10, 10, 0.06) 42%,
+    rgba(10, 10, 10, 0) 60%
   );
 }
 .ent-tile-cap {
@@ -186,8 +183,6 @@
   bottom: 16px;
   z-index: 1;
   color: #fff;
-}
-.ent-tile-cap h3 {
   font-size: clamp(18px, 1.7vw, 23px);
   font-weight: 500;
   line-height: 1.15;
@@ -208,16 +203,8 @@
     right: 10px;
     bottom: 11px;
   }
-  .ent-tile-cap h3 {
+  .ent-tile-cap {
     font-size: 16px;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ent-tile img {
-    transition: none;
-  }
-  .ent-tile.is-on img {
-    transform: none;
-  }
-}

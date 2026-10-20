@@ -19,9 +19,8 @@ export default {
     people: ["felipe", "julian"],
   },
 
-  // Zips with t.enterprise.hero.industries. Photos are 1080x810, one overhead
-  // series with one grade (sources: assets/img/enterprise/README.md), all
-  // below the fold, so all lazy.
+  // Zips with t.enterprise.hero.industries. Each id names its abstract tile's
+  // palette in assets/css/enterprise-aura.css.
   industries: [
     { id: "logistics" },
     { id: "real-estate" },
@@ -31,8 +30,8 @@ export default {
     { id: "manufacturing" },
   ],
 
-  // Zips with t.enterprise.problem.cards: the photo behind each reason, at
-  // assets/img/enterprise/problem/<id>.webp (960x720, same series).
+  // Zips with t.enterprise.problem.cards: each reason's tile, a palette in
+  // assets/css/enterprise-aura.css.
   problems: ["owns", "build", "connected", "followthrough"],
 
   // The hero reel: industries in pairs, looped. Each pair is the industry,

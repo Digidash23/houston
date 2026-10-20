@@ -1,0 +1,107 @@
+/*
+ * /enterprise — the abstract tiles (industries and the problem). Each is a
+ * field of soft light: a base color and three blurred pools, set per tile
+ * by [data-aura]. No photographs: a tile carries an industry's colors, not
+ * its picture (rust and teal for a port, amber on night for a city's money).
+ * The problem's tiles are the same fields drained to black and white, one
+ * dim light each, set somewhere different. Grain and the name's scrim come
+ * from .ent-tile (enterprise-hero.css).
+ */
+.ent-aura {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--aura-base);
+}
+/* Larger than the tile and blurred, so no pool shows an edge. */
+.ent-aura::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  filter: blur(34px);
+  background: radial-gradient(
+      40% 50% at var(--aura-at-1, 25% 30%),
+      var(--aura-1),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 55% at var(--aura-at-2, 75% 65%),
+      var(--aura-2),
+      transparent 70%
+    ),
+    radial-gradient(
+      35% 40% at var(--aura-at-3, 60% 20%),
+      var(--aura-3),
+      transparent 70%
+    );
+}
+
+/* ── Industries ─────────────────────────────────────────────────────────── */
+[data-aura="logistics"] {
+  --aura-base: #1d4f5a;
+  --aura-1: #d0582f;
+  --aura-2: #2b7a86;
+  --aura-3: #f0b27f;
+}
+[data-aura="real-estate"] {
+  --aura-base: #b89a6a;
+  --aura-1: #e8cf9c;
+  --aura-2: #6f8a55;
+  --aura-3: #f6ead4;
+  --aura-at-2: 70% 80%;
+}
+[data-aura="retail"] {
+  --aura-base: #2d6ea3;
+  --aura-1: #e5574f;
+  --aura-2: #3a8fc4;
+  --aura-3: #f4c2b2;
+  --aura-at-1: 30% 60%;
+}
+[data-aura="banking"] {
+  --aura-base: #0b111b;
+  --aura-1: #c48429;
+  --aura-2: #1f2c45;
+  --aura-3: #e9b25a;
+  --aura-at-1: 70% 70%;
+  --aura-at-3: 20% 30%;
+}
+[data-aura="insurance"] {
+  --aura-base: #294f42;
+  --aura-1: #86b3c6;
+  --aura-2: #3f7a5f;
+  --aura-3: #d7e7df;
+}
+[data-aura="manufacturing"] {
+  --aura-base: #6f7b88;
+  --aura-1: #dc7a2c;
+  --aura-2: #a9b4bf;
+  --aura-3: #eef0f2;
+  --aura-at-1: 75% 25%;
+}
+
+/* ── The problem: black and white, one dim light each ───────────────────── */
+[data-aura="owns"],
+[data-aura="build"],
+[data-aura="connected"],
+[data-aura="followthrough"] {
+  --aura-base: #151515;
+  --aura-1: rgba(255, 255, 255, 0.34);
+  --aura-2: #0c0c0c;
+  --aura-3: rgba(255, 255, 255, 0.12);
+}
+[data-aura="owns"] {
+  --aura-at-1: 50% 18%;
+  --aura-at-3: 80% 70%;
+}
+[data-aura="build"] {
+  --aura-at-1: 22% 72%;
+  --aura-at-2: 70% 30%;
+}
+[data-aura="connected"] {
+  --aura-at-1: 82% 30%;
+  --aura-at-3: 18% 40%;
+}
+[data-aura="followthrough"] {
+  --aura-at-1: 30% 25%;
+  --aura-at-3: 70% 80%;
+}

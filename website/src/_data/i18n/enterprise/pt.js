@@ -29,30 +29,12 @@ export default {
       "A nossa faz o trabalho diário de empresas de todos os setores.",
     ],
     industries: [
-      {
-        name: "Logística",
-        alt: "Contêineres empilhados em um porto, vistos de cima",
-      },
-      {
-        name: "Imobiliário",
-        alt: "Casas em volta de uma rua sem saída, vistas de cima",
-      },
-      {
-        name: "Varejo",
-        alt: "Barracas de feira sob toldos vermelhos e azuis, vistas de cima",
-      },
-      {
-        name: "Bancos",
-        alt: "As ruas de uma cidade iluminadas à noite, vistas de cima",
-      },
-      {
-        name: "Seguros",
-        alt: "Um trevo rodoviário, visto de cima",
-      },
-      {
-        name: "Indústria",
-        alt: "Tubulações e máquinas no telhado de uma fábrica, vistas de cima",
-      },
+      { name: "Logística" },
+      { name: "Imobiliário" },
+      { name: "Varejo" },
+      { name: "Bancos" },
+      { name: "Seguros" },
+      { name: "Indústria" },
     ],
   },
 
@@ -70,22 +52,10 @@ export default {
       "Quase nenhuma tem o time para fazê-las funcionar.",
     ],
     cards: [
-      {
-        title: "Ninguém é dono",
-        alt: "Um único carro em um estacionamento vazio, visto de cima",
-      },
-      {
-        title: "Ninguém para construir",
-        alt: "Paletes de tijolos e montes de areia em um terreno vazio, vistos de cima",
-      },
-      {
-        title: "Nada está conectado",
-        alt: "Uma rotatória nova cujas ruas terminam na areia, vista de cima",
-      },
-      {
-        title: "Ninguém dá continuidade",
-        alt: "Uma obra inacabada tomada pela floresta, vista de cima",
-      },
+      { title: "Ninguém é dono" },
+      { title: "Ninguém para construir" },
+      { title: "Nada está conectado" },
+      { title: "Ninguém dá continuidade" },
     ],
   },
 

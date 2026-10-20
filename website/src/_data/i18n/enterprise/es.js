@@ -29,30 +29,12 @@ export default {
       "La nuestra hace el trabajo diario de empresas de todas las industrias.",
     ],
     industries: [
-      {
-        name: "Logística",
-        alt: "Contenedores apilados en un puerto, vistos desde arriba",
-      },
-      {
-        name: "Bienes raíces",
-        alt: "Casas alrededor de una calle sin salida, vistas desde arriba",
-      },
-      {
-        name: "Retail",
-        alt: "Puestos de mercado bajo toldos rojos y azules, vistos desde arriba",
-      },
-      {
-        name: "Banca",
-        alt: "Las calles de una ciudad iluminadas de noche, vistas desde arriba",
-      },
-      {
-        name: "Seguros",
-        alt: "Un intercambio vial en forma de trébol, visto desde arriba",
-      },
-      {
-        name: "Manufactura",
-        alt: "Tuberías y maquinaria en el techo de una fábrica, vistas desde arriba",
-      },
+      { name: "Logística" },
+      { name: "Bienes raíces" },
+      { name: "Retail" },
+      { name: "Banca" },
+      { name: "Seguros" },
+      { name: "Manufactura" },
     ],
   },
 
@@ -70,22 +52,10 @@ export default {
       "Casi ninguna tiene el equipo para hacerlas funcionar.",
     ],
     cards: [
-      {
-        title: "Nadie es dueño",
-        alt: "Un solo carro en un estacionamiento vacío, visto desde arriba",
-      },
-      {
-        title: "Nadie la construye",
-        alt: "Estibas de ladrillos y montones de arena en un terreno vacío, vistos desde arriba",
-      },
-      {
-        title: "Nada está conectado",
-        alt: "Una glorieta nueva cuyas vías terminan en arena, vista desde arriba",
-      },
-      {
-        title: "Nadie le da seguimiento",
-        alt: "Una obra sin terminar que el bosque volvió a cubrir, vista desde arriba",
-      },
+      { title: "Nadie es dueño" },
+      { title: "Nadie la construye" },
+      { title: "Nada está conectado" },
+      { title: "Nadie le da seguimiento" },
     ],
   },
 

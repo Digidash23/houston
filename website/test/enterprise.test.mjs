@@ -5,7 +5,7 @@
 // These tests are that notice.
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -45,7 +45,7 @@ for (const code of Object.keys(locales)) {
       assert.equal(text.length, structure.length, name);
     }
     for (const card of copy.problem.cards) {
-      assert.ok(card.title && card.alt, card.title);
+      assert.ok(card.title);
     }
   });
 
@@ -69,14 +69,16 @@ for (const code of Object.keys(locales)) {
   });
 }
 
-test("every industry and problem photo exists", () => {
-  const files = [
-    ...enterprise.industries.map(({ id }) => `industries/${id}.webp`),
-    ...enterprise.problems.map((id) => `problem/${id}.webp`),
-  ];
-  for (const file of files) {
-    const path = `assets/img/enterprise/${file}`;
-    assert.ok(existsSync(resolve(src, path)), path);
+test("every tile has its palette", () => {
+  const css = readFileSync(
+    resolve(src, "assets/css/enterprise-aura.css"),
+    "utf8",
+  );
+  for (const id of [
+    ...enterprise.industries.map((i) => i.id),
+    ...enterprise.problems,
+  ]) {
+    assert.ok(css.includes(`[data-aura="${id}"]`), id);
   }
 });
 
