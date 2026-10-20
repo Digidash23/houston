@@ -92,11 +92,18 @@ const checkDashes = (locale, path, value) => {
   }
 };
 
+// A locale's tree as templates see it: <locale>.js, plus the /enterprise copy
+// that _data/eleventyComputed.js joins on as `enterprise`, so both are held to
+// the same parity.
 const load = async (locale) => {
   const file = resolve(i18nDir, `${locale}.js`);
   if (!existsSync(file)) return null;
-  const mod = await import(`file://${file}`);
-  return mod.default;
+  const tree = { ...(await import(`file://${file}`)).default };
+  const enterprise = resolve(i18nDir, "enterprise", `${locale}.js`);
+  if (existsSync(enterprise)) {
+    tree.enterprise = (await import(`file://${enterprise}`)).default;
+  }
+  return tree;
 };
 
 const base = await load(BASE);

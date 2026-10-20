@@ -6,6 +6,7 @@ Houston lets anyone hire AI agents that actually complete tasks across the apps 
 
 ## Core pages
 - [Home](https://gethouston.ai/): What Houston is and how the agents work.
+- [Enterprise](https://gethouston.ai/enterprise/): The platform plus forward deployed engineers to implement AI agents in a company. No-code agent builder, custom integrations, and a 4-week pilot.
 - [For Startups](https://gethouston.ai/startups/): Build your AI native product fast on Houston.
 - [Guides](https://gethouston.ai/guides/): Step by step guides for putting agents on real work.
 - [Changelog](https://gethouston.ai/changelog/): Every release in plain language.
@@ -13,6 +14,8 @@ Houston lets anyone hire AI agents that actually complete tasks across the apps 
 ## Other languages
 - [Home (Spanish)](https://gethouston.ai/es/): The same home page in Spanish.
 - [Home (Portuguese)](https://gethouston.ai/pt/): The same home page in Brazilian Portuguese.
+- [Enterprise (Spanish)](https://gethouston.ai/es/enterprise/): The enterprise page in Spanish.
+- [Enterprise (Portuguese)](https://gethouston.ai/pt/enterprise/): The enterprise page in Brazilian Portuguese.
 - [Guides (Spanish)](https://gethouston.ai/guides/es/): The guides hub in Spanish.
 
 ## Developers

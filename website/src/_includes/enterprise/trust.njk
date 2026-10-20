@@ -1,0 +1,27 @@
+{%- set e = t.enterprise -%}
+{%- macro logoItems(lazy) -%}
+{%- for logo in enterprise.logos %}
+        <li><img src="/assets/img/enterprise/logos-light/{{ logo.file }}.png" alt="{{ logo.name }}" width="{{ logo.w }}" height="{{ logo.h }}"{% if lazy %} loading="lazy"{% endif %} decoding="async"></li>
+{%- endfor %}
+{%- endmacro -%}
+{# Proof, right after the fold: one sentence, then every organization whose
+   people use Houston on an endless belt. Set to mercury.com's own
+   "Loved by 300K+" band, measured: the sentence at 42px / 1.15, weight 480,
+   at most 672px wide and centered, about 200px under the section's top, and
+   the logos 40px under it, 56px tall, 56px apart.
+
+   The belt is two identical lists sliding together, the second hidden from
+   assistive tech; reduced motion stops it and shows the first list as a
+   still, wrapped wall. #}
+<section id="trust" class="section is-dark ent-section ent-proof" data-tone="dark" data-tone-fixed aria-labelledby="ent-proof-title">
+  <h2 class="ent-proof-head reveal" id="ent-proof-title">{{ e.trust.value }} {{ e.trust.label }}</h2>
+
+  <div class="ent-belt reveal reveal-d2">
+    <div class="ent-belt-window" role="group" aria-label="{{ e.trust.logosLabel }}">
+      <ul class="ent-belt-track">{{ logoItems(true) }}
+      </ul>
+      <ul class="ent-belt-track" aria-hidden="true">{{ logoItems(true) }}
+      </ul>
+    </div>
+  </div>
+</section>

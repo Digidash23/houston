@@ -48,6 +48,7 @@ export default {
     guides: "Guias",
     vision: "Visão",
     changelog: "Novidades",
+    enterprise: "Empresas",
     github: "GitHub",
     githubLabel: "Houston no GitHub",
     download: "Baixar",

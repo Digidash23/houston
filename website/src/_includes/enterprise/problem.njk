@@ -1,0 +1,35 @@
+{%- set e = t.enterprise -%}
+{# The problem, on the black band, in the landing's #parallel structure: the
+   visual left (four reasons, each a drawing and a few big words), the title
+   and two lines right. The art is one-weight line work in white
+   (solid = what exists, dashes = what is missing, the heavy cross = where it
+   breaks). Order matches e.problem.cards; the labels inside the drawings come
+   from e.problem.art. #}
+{%- set arts = ["scattered", "build", "disconnected", "stall"] -%}
+<section id="problem" class="section is-dark ent-section" data-tone="dark">
+  <div class="split reveal">
+    <div class="split-visual ent-cards">
+{%- for card in e.problem.cards %}
+    <article class="ent-card">
+      <div class="ent-art">
+{%- if arts[loop.index0] == "scattered" %}
+        <svg viewBox="0 0 240 160" aria-hidden="true"><path class="m" d="M99.8 67.7 63.8 45.7M138.5 66l33-25M95.9 90.1l-43 18M143.5 90.6l42 19M117.8 62.6l-4-31M128.4 97.4l15 31M110.5 96.8l-17 30"/><circle class="m" cx="120" cy="80" r="17"/><text x="120" y="83.5" text-anchor="middle">?</text><circle class="k" cx="48" cy="36" r="5.5"/><path class="k" d="M39 36H24M28.4 33.6 24 36l4.4 2.4"/><circle class="k" cx="186" cy="30" r="5.5"/><path class="k" d="M189.3 21.6l5.4-14M195.4 12.6l-.7-5-3.8 3.3"/><circle class="k" cx="34" cy="116" r="5.5"/><path class="k" d="M28.7 123.3 20 135.5M20.6 130.5l-.6 5 4.5-2.2"/><circle class="k" cx="204" cy="118" r="5.5"/><path class="k" d="M212.9 116.9l14.9-1.9M223.8 117.9l4-2.9-4.6-1.8"/><circle class="k" cx="112" cy="18" r="5.5"/><path class="k" d="M106.4 11 96.9-.7M101.6 1.2 96.9-.7l.9 4.9"/><circle class="k" cx="150" cy="142" r="5.5"/><path class="k" d="M157.6 146.9l12.6 8.1M165.2 154.6l5 .4-2.4-4.4"/><circle class="k" cx="86" cy="140" r="5.5"/><path class="k" d="M86.3 149l.5 15M84.3 159.7l2.5 4.3 2.3-4.5"/></svg>
+{%- elif arts[loop.index0] == "build" %}
+        <svg viewBox="0 0 240 160" aria-hidden="true"><path class="k" d="M120 30l46 26-46 26-46-26 46-26"/><path class="k" d="M74 56l46 26v54l-46-26V56"/><path class="k f" d="M89.3 64.7v54M104.7 73.3v54M74 74l46 26M74 92l46 26"/><path class="m" d="M120 82l46-26v54l-46 26"/><path class="m" d="M186 22l18 10-18 10-18-10 18-10"/><path class="k" d="M178 52l-14 10M170 46l-6 4"/></svg>
+{%- elif arts[loop.index0] == "disconnected" %}
+        <svg viewBox="0 0 240 160" aria-hidden="true"><rect class="k" x="28" y="22" width="72" height="32" rx="8"/><text x="64" y="42" text-anchor="middle">CRM</text><rect class="k" x="140" y="22" width="72" height="32" rx="8"/><text x="176" y="42" text-anchor="middle">ERP</text><rect class="k" x="84" y="106" width="72" height="32" rx="8"/><text x="120" y="126" text-anchor="middle">{{ e.problem.art.inbox }}</text><path class="k" d="M100 38h13M127 38h13M64 54l15.7 20.5M88.3 85.5 104 106M176 54l-15.7 20.5M151.7 85.5 136 106"/><path class="x" d="M116.5 34.5l7 7M123.5 34.5l-7 7M80.5 76.5l7 7M87.5 76.5l-7 7M152.5 76.5l7 7M159.5 76.5l-7 7"/></svg>
+{%- else %}
+        <svg viewBox="0 0 240 160" aria-hidden="true"><path class="k" d="M30 24v110h184"/><path class="m" d="M30 44h184"/><text x="212" y="38" text-anchor="end">{{ e.problem.art.target }}</text><path class="k" d="M34 126l24-16 24-22 22-16 22-6 22 2 22 6 22 12 16 6"/><circle class="d" cx="34" cy="126" r="2.2"/><circle class="d" cx="82" cy="88" r="2.2"/><circle class="d" cx="126" cy="66" r="2.2"/><circle class="d" cx="170" cy="74" r="2.2"/><circle class="d" cx="208" cy="92" r="2.2"/><circle class="x" cx="208" cy="92" r="6.5"/></svg>
+{%- endif %}
+      </div>
+      <h3>{{ card.title }}</h3>
+    </article>
+{%- endfor %}
+    </div>
+    <div class="split-copy">
+      <h2 class="sec-title">{{ e.problem.title }}</h2>
+      <p class="split-line">{{ e.problem.phrases[0] }}</p>
+      <p class="split-line is-strong">{{ e.problem.phrases[1] }}</p>
+    </div>
+  </div>
+</section>

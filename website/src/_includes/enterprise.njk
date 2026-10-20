@@ -1,0 +1,77 @@
+{# The /enterprise page, one layout for all three locales. Same contract as
+   landing.njk: text from `t.enterprise` (_data/i18n/enterprise/<lang>.js),
+   structure from `enterprise` (_data/enterprise.js), language from directory
+   data. The page files (src/enterprise/, src/es/enterprise/,
+   src/pt/enterprise/) are stubs that only set the permalink.
+
+   It is a subpage as far as the shared chrome goes (`root` prefixes the footer
+   anchors with the locale root), but it owns its nav: a dark hero to float
+   over, its own section anchors, and a discovery-call CTA in place of the download.
+   `localePath` makes the shared footer's language row land on this page in
+   the other language instead of that locale's landing. #}
+{% extends "base.njk" %}
+{% set e = t.enterprise %}
+{% set localePath = enterprise.path %}
+{% block title %}{{ e.meta.title }}{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ e.meta.description }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gethouston.ai{{ locale.dir }}{{ enterprise.path }}">
+<meta property="og:title" content="{{ e.meta.title }}">
+<meta property="og:description" content="{{ e.meta.description }}">
+<meta property="og:site_name" content="Houston">
+<meta property="og:locale" content="{{ locale.ogLocale }}">
+{%- for code in locales.order %}{% if code != locale.code %}
+<meta property="og:locale:alternate" content="{{ locales[code].ogLocale }}">
+{%- endif %}{% endfor %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ e.meta.title }}">
+<meta name="twitter:description" content="{{ e.meta.description }}">
+{%- for code in locales.order %}
+<link rel="alternate" hreflang="{{ locales[code].hreflang }}" href="https://gethouston.ai{{ locales[code].dir }}{{ enterprise.path }}">
+{%- endfor %}
+<link rel="alternate" hreflang="x-default" href="https://gethouston.ai/{{ enterprise.path }}">
+{% endblock %}
+{% block headScripts %}
+<script>document.documentElement.className += " js";</script>
+{% endblock %}
+{% block stylesheets %}
+{# The first clip's poster frame is the LCP. #}
+<link rel="preload" as="image" type="image/webp" href="{{ enterprise.reelDir }}/{{ enterprise.reel[0] }}.webp" fetchpriority="high">
+<link rel="stylesheet" href="/assets/css/site-tokens.css">
+<link rel="stylesheet" href="/assets/css/landing.css">
+<link rel="stylesheet" href="/assets/css/landing-app-window.css">
+<link rel="stylesheet" href="/assets/css/landing-hero.css">
+<link rel="stylesheet" href="/assets/css/landing-chat.css">
+<link rel="stylesheet" href="/assets/css/landing-multiplayer.css">
+<link rel="stylesheet" href="/assets/css/landing-splits.css">
+<link rel="stylesheet" href="/assets/css/landing-motion.css">
+<link rel="stylesheet" href="/assets/css/download-gate.css">
+<link rel="stylesheet" href="/assets/css/dl-dropdown.css">
+<link rel="stylesheet" href="/assets/css/lang-switch.css">
+<link rel="stylesheet" href="/assets/css/enterprise.css">
+<link rel="stylesheet" href="/assets/css/enterprise-hero.css">
+<link rel="stylesheet" href="/assets/css/enterprise-problem.css">
+<link rel="stylesheet" href="/assets/css/enterprise-solution.css">
+<link rel="stylesheet" href="/assets/css/enterprise-flow.css">
+{% endblock %}
+{% block body %}
+{% include "enterprise/nav.njk" %}
+<main id="main">
+{% include "enterprise/hero.njk" %}
+{% include "enterprise/trust.njk" %}
+{% include "enterprise/industries.njk" %}
+{% include "enterprise/problem.njk" %}
+{% include "enterprise/solution.njk" %}
+{% include "enterprise/contact.njk" %}
+</main>
+{% include "landing/footer.njk" %}
+{% include "landing/download-modals.njk" %}
+{% include "landing/subpage-scripts.njk" %}
+{% include "enterprise/scripts.njk" %}
+<script defer src="/assets/enterprise-reel.js"></script>
+<script defer src="/assets/enterprise-process.js"></script>
+{# Lenis (vendored, the landing hero's own copy) before the flow that starts it. #}
+<script defer src="/assets/vendor/lenis.min.js"></script>
+<script defer src="/assets/enterprise-flow.js"></script>
+{% endblock %}
