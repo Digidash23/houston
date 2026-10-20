@@ -25,7 +25,7 @@ interface StepProps {
   /** Set for a payer: the step this is, of two. */
   step?: 1 | 2;
   busy: boolean;
-  /** Renders the frame's title element (Dialog or Sheet) with this id. */
+  /** Renders the frame's title; the id names an inner span for aria-labelledby. */
   title: (text: string, id: string) => ReactNode;
 }
 

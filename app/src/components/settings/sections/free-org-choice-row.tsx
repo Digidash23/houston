@@ -6,10 +6,8 @@ import {
 import { Button, Card } from "@houston-ai/core";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  useBillingChoice,
-  useChoiceNow,
-} from "../../../hooks/queries/use-billing-choice";
+import { useBillingChoice } from "../../../hooks/queries/use-billing-choice";
+import { useChoiceNow } from "../../../hooks/use-choice-now";
 import { FreeOrgPicker } from "../../shell/free-org-picker";
 import { useOrgName } from "../../shell/free-org-picker-rows";
 

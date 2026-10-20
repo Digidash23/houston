@@ -6,9 +6,9 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useBillingChoice,
-  useChoiceNow,
   useDismissBillingChoice,
 } from "../../hooks/queries/use-billing-choice";
+import { useChoiceNow } from "../../hooks/use-choice-now";
 import { orgSlugFromWorkspaceId } from "../../lib/space-id";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { type Shown, useNoticeText } from "./billing-change-copy";
