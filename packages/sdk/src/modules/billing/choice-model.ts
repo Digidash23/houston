@@ -7,12 +7,16 @@ const CURRENCY = "usd";
 
 /**
  * Where the person stands on the change. `pick`: an owner of several orgs who
- * has not picked (`payer`: their subscription also moves to an org they pick);
- * it stays until they pick, whatever `noticeDismissed` says. `picked`: the
- * pick is stored. `single_org`: the one org they own stays free (or, for a
- * subscriber, is what the subscription pays for). `member`: the person is in
- * an org someone else owns, so its owner decides. `hidden`: applied, past the
- * cutover, or a read-only notice that was dismissed.
+ * has not picked and still may (`payer`: their subscription also moves to an
+ * org they pick); it stays until they pick, whatever `noticeDismissed` says.
+ * `picked`: a pick of an org they still own is stored, even if they own one
+ * org now. `single_org`: the one org they own stays free (or, for a
+ * subscriber, is what the subscription pays for). `member`: they own no org,
+ * so each org's owner decides. `hidden`: applied, past the cutover, past the
+ * change window with nothing picked, or a read-only notice that was dismissed.
+ *
+ * Nothing here reads the active space: the notice is dismissed once for the
+ * account, so the space it happens to show in must not decide what it says.
  */
 export type ChoiceNotice =
   | { kind: "hidden" }
@@ -23,8 +27,6 @@ export type ChoiceNotice =
 
 export interface ChoiceContext {
   now: number;
-  /** The active team's slug; null in the personal space, which is owned. */
-  activeOrgSlug: string | null;
   locale?: string;
 }
 
@@ -83,19 +85,21 @@ export function choiceNotice(
   )
     return { kind: "hidden" };
   const date = formatCutoverDate(choice.cutoverAt, context.locale);
-  const owned = (slug: string | null) =>
-    slug === null || choice.orgs.some((org) => org.slug === slug);
-  if (choice.needed && choice.freeOrgSlug && owned(choice.freeOrgSlug))
+  const stored = choice.orgs.find((org) => org.slug === choice.freeOrgSlug);
+  if (stored)
     return {
       kind: "picked",
-      freeOrgSlug: choice.freeOrgSlug,
+      freeOrgSlug: stored.slug,
       paidOrgSlug: choice.paidOrgSlug,
     };
+  // Never offer a picker the gateway would refuse.
   if (choice.needed)
-    return { kind: "pick", date, payer: choosesPaidOrg(choice) };
+    return canChangeChoice(choice, context.now)
+      ? { kind: "pick", date, payer: choosesPaidOrg(choice) }
+      : { kind: "hidden" };
   if (choice.noticeDismissed) return { kind: "hidden" };
   const [only] = choice.orgs;
-  if (!only || !owned(context.activeOrgSlug)) return { kind: "member", date };
+  if (!only) return { kind: "member", date };
   return {
     kind: "single_org",
     date,

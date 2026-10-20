@@ -68,9 +68,10 @@ export function useSetBillingChoice() {
 }
 
 /**
- * Hide the announcement now; the gateway keeps it hidden on every device. A
- * failed dismissal (reported by the engine call) brings the bar back so the
- * person can try again.
+ * Record the dismissal; the gateway keeps the announcement hidden on every
+ * device. The modal is already closed for the session either way. A failed
+ * dismissal (reported by the engine call) restores the cached flag, so the
+ * modal shows again on a later app open and closing it retries.
  */
 export function useDismissBillingChoice() {
   const client = useQueryClient();

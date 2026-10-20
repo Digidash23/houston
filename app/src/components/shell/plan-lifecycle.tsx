@@ -1,4 +1,4 @@
-import { planDialog } from "@houston/sdk";
+import { planDialog, planDialogBlocks } from "@houston/sdk";
 import {
   Button,
   Dialog,
@@ -58,11 +58,6 @@ export function PlanLifecycle() {
   };
 
   usePlanPresence(capabilities?.plan === true);
-  // The pricing-change modal waits behind any plan dialog, and behind a plan
-  // still loading, which may yet bring one.
-  const planDialogShowing =
-    planQuery.isLoading ||
-    (dialog === "announcement" ? !announcementClosed : dialog !== null);
 
   return (
     <>
@@ -181,7 +176,12 @@ export function PlanLifecycle() {
           onDismiss={() => setAnnouncementClosed(true)}
         />
       )}
-      <BillingChangeModal otherDialogOpen={planDialogShowing} />
+      <BillingChangeModal
+        otherDialogOpen={planDialogBlocks(dialog, {
+          planLoading: planQuery.isLoading,
+          announcementClosed,
+        })}
+      />
     </>
   );
 }

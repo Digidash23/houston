@@ -136,10 +136,9 @@ describe("the free-org picker", () => {
   });
 });
 
-function noticeText(choice: BillingChoice, activeOrgSlug: string | null) {
+function noticeText(choice: BillingChoice) {
   const notice = choiceNotice(choice, {
     now: Date.parse("2026-10-20T17:00:00.000Z"),
-    activeOrgSlug,
     locale: i18next.language,
   });
   if (
@@ -167,39 +166,39 @@ const SINGLE = {
 describe("the announcement copy", () => {
   it("asks an owner to choose, with the date and the price", () => {
     strictEqual(
-      noticeText({ ...CHOICE, payer: null }, null),
+      noticeText({ ...CHOICE, payer: null }),
       "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month.",
     );
   });
 
   it("tells a payer the subscription moves to the org they pick", () => {
     strictEqual(
-      noticeText(CHOICE, null),
+      noticeText(CHOICE),
       "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month. Your subscription moves to the organization you pick.",
     );
   });
 
   it("names the one org that stays free, or that the subscription pays for", () => {
     strictEqual(
-      noticeText(SINGLE, null),
+      noticeText(SINGLE),
       "From Friday, October 23, La Fila stays free. Upgrade anytime for $15 per member a month.",
     );
     strictEqual(
-      noticeText({ ...SINGLE, payer: "plus" }, null),
+      noticeText({ ...SINGLE, payer: "plus" }),
       "From Friday, October 23, your subscription pays for La Fila.",
     );
   });
 
   it("tells a member in someone else's org that the owner chooses", () => {
     strictEqual(
-      noticeText(SINGLE, "ffffffffffffffff"),
+      noticeText({ ...SINGLE, orgs: [] }),
       "From Friday, October 23, plans work per organization. Your organization's owner chooses the plan.",
     );
   });
 
   it("says nothing once the pick is stored", () => {
     strictEqual(
-      noticeText({ ...CHOICE, freeOrgSlug: "1111111111111111" }, null),
+      noticeText({ ...CHOICE, freeOrgSlug: "1111111111111111" }),
       "picked",
     );
   });
@@ -208,7 +207,7 @@ describe("the announcement copy", () => {
     await i18next.changeLanguage("es");
     try {
       strictEqual(
-        noticeText({ ...CHOICE, payer: null }, null),
+        noticeText({ ...CHOICE, payer: null }),
         "Desde el viernes, 23 de octubre, una de tus organizaciones sigue gratis. Las demás cuestan 15\u00a0US$ por miembro al mes.",
       );
     } finally {

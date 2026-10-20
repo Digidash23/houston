@@ -1,16 +1,20 @@
 import { layout } from "@houston/design-tokens";
 import type { BillingChoice } from "@houston/engine-adapter";
-import { type ChoiceModal, choiceModal } from "@houston/sdk";
+import {
+  CLOSED_CHOICE_FRAME,
+  choiceModal,
+  nextChoiceModalFrame,
+  type ShownChoiceModal,
+  startPicking,
+} from "@houston/sdk";
 import { DialogDescription, DialogTitle } from "@houston-ai/core";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useBillingChoice,
   useDismissBillingChoice,
 } from "../../hooks/queries/use-billing-choice";
 import { useChoiceNow } from "../../hooks/use-choice-now";
-import { orgSlugFromWorkspaceId } from "../../lib/space-id";
-import { useWorkspaceStore } from "../../stores/workspaces";
 import { useNoticeBody } from "./billing-change-copy";
 import { PickerBody } from "./free-org-picker";
 import { PlanAnnouncementCta } from "./plan-announcement-cta";
@@ -19,13 +23,12 @@ import {
   PlanBriefingQuietButton,
 } from "./plan-briefing-frame";
 
-type Shown = Extract<ChoiceModal, { open: true }>;
-
 /**
  * The pricing-change announcement, shown when the app opens. Cloud only.
- * Every rule about whether it shows and what closing it does lives in the
- * SDK's {@link choiceModal}; this holds the session's "Maybe later" and
- * renders. An owner who has to pick moves from the intro to the picker in
+ * Every rule about whether it shows, what closing it does and when the picker
+ * replaces the intro lives in the SDK ({@link choiceModal},
+ * {@link nextChoiceModalFrame}); this holds the session's close and the frame,
+ * and renders. An owner who has to pick moves from the intro to the picker in
  * the same frame.
  */
 export function BillingChangeModal({
@@ -34,34 +37,32 @@ export function BillingChangeModal({
   otherDialogOpen: boolean;
 }) {
   const { data: choice } = useBillingChoice();
-  const current = useWorkspaceStore((s) => s.current);
   const { t, i18n } = useTranslation("plan");
   const now = useChoiceNow(choice);
   const dismiss = useDismissBillingChoice();
-  const [later, setLater] = useState(false);
-  const [picking, setPicking] = useState(false);
+  const [closed, setClosed] = useState(false);
+  const [stored, setFrame] = useState(CLOSED_CHOICE_FRAME);
   const modal = choiceModal(choice, {
     now,
-    activeOrgSlug: current ? orgSlugFromWorkspaceId(current.id) : null,
     locale: i18n.language,
-    laterThisSession: later,
+    closedThisSession: closed,
     otherDialogOpen,
   });
-  // The last notice shown keeps the frame's contents through its exit.
-  const shown = useRef<Shown | null>(null);
-  if (modal.open) shown.current = modal;
-  const last = shown.current;
-  if (!choice || !last) return null;
+  // Derived from the last render's frame; React re-renders before painting.
+  const frame = nextChoiceModalFrame(stored, modal);
+  if (frame !== stored) setFrame(frame);
+  const { shown, picking } = frame;
+  if (!choice || !shown) return null;
   const close = () => {
-    if (last.close === "session") setLater(true);
-    else dismiss.mutate();
+    setClosed(true);
+    if (shown.close === "everywhere") dismiss.mutate();
   };
   return (
     <PlanBriefingFrame
-      open={modal.open}
+      open={frame.open}
       onDismiss={close}
       closeLabel={
-        last.close === "session" ? t("maybeLater") : t("choice.notice.close")
+        shown.close === "session" ? t("maybeLater") : t("choice.notice.close")
       }
       width={layout["choice-dialog-width"]}
       described={!picking}
@@ -71,9 +72,9 @@ export function BillingChangeModal({
         <PickerBody choice={choice} onDone={close} />
       ) : (
         <Intro
-          shown={last}
+          shown={shown}
           choice={choice}
-          onPick={() => setPicking(true)}
+          onPick={() => setFrame(startPicking)}
           onClose={close}
         />
       )}
@@ -87,7 +88,7 @@ function Intro({
   onPick,
   onClose,
 }: {
-  shown: Shown;
+  shown: ShownChoiceModal;
   choice: BillingChoice;
   onPick: () => void;
   onClose: () => void;

@@ -7,13 +7,16 @@ import {
   LA_FILA,
   PERSONAL,
 } from "./choice-fixtures";
-import { type ChoiceModalContext, choiceModal } from "./choice-modal";
+import {
+  type ChoiceModalContext,
+  choiceModal,
+  planDialogBlocks,
+} from "./choice-modal";
 
 const at = (patch: Partial<ChoiceModalContext> = {}): ChoiceModalContext => ({
   now: BEFORE,
-  activeOrgSlug: null,
   locale: "en",
-  laterThisSession: false,
+  closedThisSession: false,
   otherDialogOpen: false,
   ...patch,
 });
@@ -35,7 +38,7 @@ describe("choiceModal", () => {
   });
 
   it("waits for the next app open after Maybe later", () => {
-    expect(choiceModal(choice(), at({ laterThisSession: true }))).toEqual({
+    expect(choiceModal(choice(), at({ closedThisSession: true }))).toEqual({
       open: false,
     });
   });
@@ -58,9 +61,7 @@ describe("choiceModal", () => {
       },
       close: "everywhere",
     });
-    expect(
-      choiceModal(single, at({ activeOrgSlug: "ffffffffffffffff" })),
-    ).toEqual({
+    expect(choiceModal(choice({ needed: false, orgs: [] }), at())).toEqual({
       open: true,
       notice: { kind: "member", date: "Friday, October 23" },
       close: "everywhere",
@@ -70,11 +71,36 @@ describe("choiceModal", () => {
     });
   });
 
-  it("ignores Maybe later for a read-only notice, which has none", () => {
-    expect(choiceModal(single, at({ laterThisSession: true }))).toMatchObject({
-      open: true,
-      close: "everywhere",
+  it("stays closed for the session once a read-only notice is closed", () => {
+    // The dismissal failed, so the server still says it is not dismissed: it
+    // shows again on a later app open, which retries the dismissal.
+    expect(choiceModal(single, at({ closedThisSession: true }))).toEqual({
+      open: false,
     });
+    expect(
+      choiceModal(
+        choice({ needed: false, orgs: [] }),
+        at({ closedThisSession: true }),
+      ),
+    ).toEqual({ open: false });
+  });
+
+  it("shows nothing for a stored pick the owner kept after dropping to one org", () => {
+    const narrowed = choice({
+      needed: false,
+      orgs: [INNOVA],
+      freeOrgSlug: INNOVA.slug,
+    });
+    expect(choiceModal(narrowed, at())).toEqual({ open: false });
+  });
+
+  it("offers no picker once the change window has closed", () => {
+    expect(
+      choiceModal(
+        choice({ changeableUntil: "2026-10-20T00:00:00.000Z" }),
+        at(),
+      ),
+    ).toEqual({ open: false });
   });
 
   it("shows nothing once the pick is stored", () => {
@@ -113,5 +139,37 @@ describe("choiceModal", () => {
     });
     expect(choiceModal(null, at())).toEqual({ open: false });
     expect(choiceModal(undefined, at())).toEqual({ open: false });
+  });
+});
+
+describe("planDialogBlocks", () => {
+  const blocks = (
+    dialog: Parameters<typeof planDialogBlocks>[0],
+    patch: Partial<Parameters<typeof planDialogBlocks>[1]> = {},
+  ) =>
+    planDialogBlocks(dialog, {
+      planLoading: false,
+      announcementClosed: false,
+      ...patch,
+    });
+
+  it("blocks while a plan dialog shows", () => {
+    expect(blocks("resume")).toBe(true);
+    expect(blocks("keep")).toBe(true);
+    expect(blocks("announcement")).toBe(true);
+    expect(blocks(null)).toBe(false);
+  });
+
+  it("lets the modal follow the launch announcement once it is closed", () => {
+    expect(blocks("announcement", { announcementClosed: true })).toBe(false);
+    // Only the announcement closes for the session; the others stay up.
+    expect(blocks("keep", { announcementClosed: true })).toBe(true);
+  });
+
+  it("waits while the plan loads, since it may bring a dialog", () => {
+    expect(blocks(null, { planLoading: true })).toBe(true);
+    expect(
+      blocks("announcement", { planLoading: true, announcementClosed: true }),
+    ).toBe(true);
   });
 });
