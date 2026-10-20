@@ -3,8 +3,8 @@
 // Markup (enterprise/solution.njk): [data-slider] holds the [data-slide]
 // slides, the [data-prev] / [data-next] buttons and the position marks. The
 // next button, a swipe or the arrow keys (once the slider has focus) move
-// forward. On the last slide the slider wears .is-last, which swaps the next
-// chevron for the "Book a discovery call" pill. Nothing moves on its own.
+// forward. On the last slide the slider wears .is-last, which hides the next
+// chevron. Nothing moves on its own.
 
 (() => {
   const root = document.querySelector("[data-slider]");
@@ -28,6 +28,7 @@
       mark.classList.toggle("is-on", i === current);
     });
     prev.disabled = current === 0;
+    next.disabled = current === last;
     root.classList.toggle("is-last", current === last);
   };
   show(0);

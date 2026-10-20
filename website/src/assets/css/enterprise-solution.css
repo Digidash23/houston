@@ -38,8 +38,12 @@
 html.js .ent-slides {
   display: grid;
 }
+/* Each slide sits on the cell's floor, so the pill lands on the same line
+   above the marks on every slide and a short slide's air goes above its
+   title, not under the button. */
 html.js .ent-slide {
   grid-area: 1 / 1;
+  align-self: end;
   opacity: 0;
   visibility: hidden;
   transform: translateY(10px);
@@ -142,18 +146,15 @@ html.js .ent-slide + .ent-slide {
   width: 22px;
   background: var(--ink-strong);
 }
-/* The last slide's way forward: the chevron gives way to a pill that books
-   the call, the same ink and height, centered under the text where the marks
-   were (its label is too long to sit beside the slide). */
-.ent-slider-cta,
+/* Every slide closes on the same pill that books the call, so all five
+   have one shape and the slider never sits on empty air. Inside the slide,
+   so it fades with it. */
 .ent-slide-cta {
-  grid-area: dots;
-  justify-self: center;
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   height: 56px;
-  margin-top: clamp(32px, 4vw, 48px);
+  margin-top: clamp(28px, 3.4vw, 40px);
   padding: 0 22px 0 26px;
   border-radius: 999px;
   background: var(--action);
@@ -164,29 +165,21 @@ html.js .ent-slide + .ent-slide {
   transition: background-color var(--dur-fast) var(--ease-standard),
     transform var(--dur-fast) var(--ease-entrance);
 }
-.ent-slider-cta svg,
 .ent-slide-cta svg {
   width: 18px;
   height: 18px;
 }
-.ent-slider-cta:hover,
 .ent-slide-cta:hover {
   background: var(--action-hover);
 }
-.ent-slider-cta:active,
 .ent-slide-cta:active {
   transform: scale(0.96);
 }
-.ent-slider.is-last .ent-arrow-next,
-.ent-slider.is-last .ent-dots {
-  display: none;
-}
-.ent-slider.is-last .ent-slider-cta {
-  display: inline-flex;
-}
-/* The first slide's own pill: inside the slide, so it fades with it. */
-.ent-slide-cta {
-  display: inline-flex;
+/* Nowhere further to go: next steps out of the way, like back does on the
+   first slide, and keeps its place so nothing shifts. */
+.ent-slider.is-last .ent-arrow-next {
+  opacity: 0;
+  pointer-events: none;
 }
 /* Phones: the text takes the full width, the buttons flank the marks. */
 @media (max-width: 640px) {
@@ -202,16 +195,13 @@ html.js .ent-slide + .ent-slide {
     height: 48px;
     margin-top: 32px;
   }
-  /* Back sits alone on the bottom row; the pill takes the row under it. */
-  .ent-slider.is-last {
-    grid-template-areas:
-      "slides slides slides"
-      "prev   .      ."
-      "dots   dots   dots";
-  }
-  .ent-slider-cta {
+  /* The Spanish label runs long: a tighter pill keeps it on one line in a
+     390px screen. */
+  .ent-slide-cta {
     height: 48px;
-    margin-top: 16px;
+    gap: 6px;
+    padding: 0 16px 0 18px;
+    font-size: 14px;
   }
 }
 
@@ -229,12 +219,10 @@ html.js .ent-slide + .ent-slide {
 .is-dark .ent-arrow-next:hover {
   background: #ececec;
 }
-.is-dark .ent-slider-cta,
 .is-dark .ent-slide-cta {
   background: #fff;
   color: var(--ink-strong);
 }
-.is-dark .ent-slider-cta:hover,
 .is-dark .ent-slide-cta:hover {
   background: #ececec;
 }

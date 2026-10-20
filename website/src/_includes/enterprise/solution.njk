@@ -5,15 +5,13 @@
 {%- macro chevronRight() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>{% endmacro -%}
 {#- One slide: a big title, then a smaller line under it with air between,
     the two levels of the proof band. The first slide is the section title,
-    so it is the heading, and it carries the booking pill too, for whoever
-    is ready before the four steps. -#}
+    so it is the heading. Every slide ends on the booking pill, so whoever
+    is ready can book from any step. -#}
 {%- macro slide(index, count, head, rest, tag, cta) %}
       <div class="ent-slide{% if index == 0 %} is-on{% endif %}" role="group" aria-roledescription="slide" aria-label="{{ index + 1 }} / {{ count }}" data-slide="{{ index }}">
         <{{ tag }} class="ent-slide-head">{{ head }}</{{ tag }}>
         <p class="ent-slide-rest">{{ rest }}</p>
-{%- if cta %}
         <a class="ent-slide-cta" href="{{ cta.href }}">{{ cta.label }}{{ chevronRight() }}</a>
-{%- endif %}
       </div>
 {%- endmacro -%}
 {# How we solve it: the whole story as ONE slide at a time, centered in the
@@ -21,7 +19,7 @@
    round button with a chevron sits to the right of the text so the way
    forward is obvious, a quiet one to the left goes back, and the marks under
    it say where you are. Nothing moves on its own; on the last slide the
-   chevron becomes a "Book a discovery call" pill (assets/enterprise-process.js).
+   chevron steps aside (assets/enterprise-process.js).
 
    Without JS every slide stands, one under the other, and the buttons do
    nothing. #}
@@ -32,15 +30,11 @@
     <div class="ent-slides">
 {{ slide(0, count, s.title, s.lead, "h2", { href: mailto, label: s.bookCall }) }}
 {%- for phase in s.phases %}
-{{ slide(loop.index, count, phase.head, phase.rest, "p") }}
+{{ slide(loop.index, count, phase.head, phase.rest, "p", { href: mailto, label: s.bookCall }) }}
 {%- endfor %}
     </div>
 
     <button class="ent-arrow ent-arrow-next" type="button" data-next aria-label="{{ s.next }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
-
-    {#- On the last slide there is nothing left to see: the chevron gives way
-        to booking the call, the same address as the contact section. -#}
-    <a class="ent-slider-cta" href="{{ mailto }}">{{ s.bookCall }}{{ chevronRight() }}</a>
 
     <span class="ent-dots" aria-hidden="true">{% for i in range(0, count) %}<i{% if i == 0 %} class="is-on"{% endif %}></i>{% endfor %}</span>
   </div>
