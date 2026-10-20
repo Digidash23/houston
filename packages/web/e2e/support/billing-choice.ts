@@ -94,7 +94,13 @@ export const armCapabilities = (caps: Record<string, unknown>) =>
 export const armChoice = (
   choice: BillingChoice | null,
   refuse?: "not_owner" | "not_payer" | "same_org",
-) => post("/__test__/billing-choice", { choice, refuse });
+  options: {
+    /** What the gateway answers once a pick is refused. */
+    afterRefusal?: BillingChoice;
+    /** Every dismissal answers 500. */
+    failDismiss?: boolean;
+  } = {},
+) => post("/__test__/billing-choice", { choice, refuse, ...options });
 
 export async function choiceCalls(): Promise<
   { route: "get" | "set" | "dismiss"; body?: unknown }[]

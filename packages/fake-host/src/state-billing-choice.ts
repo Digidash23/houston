@@ -19,28 +19,45 @@ export interface BillingChoiceCall {
 
 export type BillingPickRefusal = "not_owner" | "not_payer" | "same_org";
 
+/** What a spec arms beyond the choice itself. */
+export interface BillingChoiceArming {
+  /**
+   * Every pick answers this refusal, which the client never provokes on its
+   * own (it only offers orgs the person owns).
+   */
+  refuse?: BillingPickRefusal | null;
+  /**
+   * The choice the gateway computes once a refusal lands: the person's orgs
+   * changed under the picker (a transfer, a deletion).
+   */
+  afterRefusal?: BillingChoice | null;
+  /** Every dismissal answers 500 and stores nothing. */
+  failDismiss?: boolean;
+}
+
 let armed: BillingChoice | null = null;
-let forced: BillingPickRefusal | null = null;
+let arming: BillingChoiceArming = {};
 let calls: BillingChoiceCall[] = [];
 
 export function resetBillingChoice(): void {
   armed = null;
-  forced = null;
+  arming = {};
   calls = [];
 }
 
-/**
- * Arm (or, with `null`, disarm) the choice; clears the ledger. `refuse`
- * makes every pick answer that refusal, which the client never provokes on
- * its own (it only offers orgs the person owns).
- */
+/** Arm (or, with `null`, disarm) the choice; clears the ledger. */
 export function armBillingChoice(
   choice: BillingChoice | null,
-  refuse: BillingPickRefusal | null = null,
+  options: BillingChoiceArming = {},
 ): void {
   armed = choice ? structuredClone(choice) : null;
-  forced = refuse;
+  arming = structuredClone(options);
   calls = [];
+}
+
+/** Whether a dismissal should fail, as armed. */
+export function dismissFails(): boolean {
+  return arming.failDismiss === true;
 }
 
 export function billingChoice(): BillingChoice | null {
@@ -63,7 +80,11 @@ export function refuseBillingPick(
   choice: BillingChoice,
   pick: BillingChoicePick,
 ): BillingPickRefusal | null {
-  if (forced) return forced;
+  const forced = arming.refuse ?? null;
+  if (forced) {
+    if (arming.afterRefusal) armed = structuredClone(arming.afterRefusal);
+    return forced;
+  }
   const paid = pick.paidOrgSlug;
   if (paid !== undefined && paid === pick.freeOrgSlug) return "same_org";
   if (paid !== undefined && choice.payer !== "plus" && choice.payer !== "comp")

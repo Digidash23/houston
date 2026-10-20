@@ -49,6 +49,11 @@ export function handleBillingChoiceRoutes(
     }
     case "POST /v1/me/billing-choice/dismiss":
       state.recordBillingChoiceCall("dismiss");
+      if (state.dismissFails())
+        return json(
+          { error: "billing choice unavailable", code: "choice_unavailable" },
+          500,
+        );
       state.dismissBillingChoice(choice);
       return noContent();
     default:
@@ -57,21 +62,24 @@ export function handleBillingChoiceRoutes(
 }
 
 /**
- * `POST /__test__/billing-choice`: `{ choice, refuse? }` arms it,
+ * `POST /__test__/billing-choice`: `{ choice, refuse?, afterRefusal?,
+ * failDismiss? }` arms it ({@link state.BillingChoiceArming}),
  * `{ choice: null }` disarms.
  */
 export function handleBillingChoiceControl(
   body: Record<string, unknown> | undefined,
 ): Response {
-  const choice =
-    body?.choice && typeof body.choice === "object"
-      ? (body.choice as BillingChoice)
-      : null;
+  const choiceOf = (value: unknown) =>
+    value && typeof value === "object" ? (value as BillingChoice) : null;
   const refuse =
     typeof body?.refuse === "string" && Object.hasOwn(STATUS, body.refuse)
       ? (body.refuse as state.BillingPickRefusal)
       : null;
-  state.armBillingChoice(choice, refuse);
+  state.armBillingChoice(choiceOf(body?.choice), {
+    refuse,
+    afterRefusal: choiceOf(body?.afterRefusal),
+    failDismiss: body?.failDismiss === true,
+  });
   return json({ choice: state.billingChoice() });
 }
 

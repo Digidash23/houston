@@ -130,6 +130,27 @@ test("a refused pick shows its own copy and keeps the picker open", async ({
   await expect(modal.getByRole("radio")).toHaveCount(3);
 });
 
+test("a refusal that leaves one owned org swaps the picker for the notice", async ({
+  page,
+}) => {
+  await armCapabilities(SPACES_OWNER_CAPS);
+  // The other orgs were handed over meanwhile: the refetch owns one org.
+  await armChoice(ownerChoice(), "not_owner", {
+    afterRefusal: singleOrgChoice(),
+  });
+  await page.goto("/");
+  const modal = choiceModal(page);
+  await modal.getByRole("button", { name: CHOOSE }).click({ timeout: 15_000 });
+  await modal.getByRole("button", { name: "Keep La Fila free" }).click();
+  await expect(page.getByText("You don't own that organization")).toBeVisible();
+
+  await expect(modal).toContainText(
+    "From Friday, October 23, La Fila stays free. Upgrade anytime for $15 per member a month.",
+  );
+  await expect(modal.getByRole("radio")).toHaveCount(0);
+  await expect(modal.getByRole("button", { name: "Got it" })).toBeVisible();
+});
+
 test("Maybe later hides it for this session only, and Billing still opens the picker", async ({
   page,
 }) => {
@@ -205,6 +226,28 @@ test("a member reads it once: Got it dismisses it on every device", async ({
     .poll(async () => (await routes()).filter((r) => r === "get").length)
     .toBe(2);
   await expect(choiceModal(page)).toBeHidden();
+});
+
+test("a failed Got it keeps the modal closed, and a later open retries", async ({
+  page,
+}) => {
+  await armCapabilities(SPACES_OWNER_CAPS);
+  await armChoice(memberChoice(), undefined, { failDismiss: true });
+  await page.goto("/");
+  const modal = choiceModal(page);
+  await modal
+    .getByRole("button", { name: "Got it" })
+    .click({ timeout: 15_000 });
+  await expect(modal).toBeHidden();
+  await expect.poll(routes).toContain("dismiss");
+  await page.clock.runFor(3_000);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Nothing was stored, so the next open shows it again.
+  await page.reload();
+  await expect(page.getByRole("dialog", { name: MODAL_TITLE })).toBeVisible({
+    timeout: 15_000,
+  });
 });
 
 test("a single-org owner reads that it stays free; the X dismisses it too", async ({

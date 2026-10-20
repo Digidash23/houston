@@ -105,4 +105,33 @@ describe("billing choice", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: "same_org" });
   });
+
+  it("fails a dismissal when armed to, storing nothing", async () => {
+    await send("POST", "/__test__/billing-choice", {
+      choice: CHOICE,
+      failDismiss: true,
+    });
+    const res = await send("POST", "/v1/me/billing-choice/dismiss");
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ code: "choice_unavailable" });
+    expect(
+      await (await send("GET", "/v1/me/billing-choice")).json(),
+    ).toMatchObject({ noticeDismissed: false });
+  });
+
+  it("answers the armed after-refusal choice once a pick is refused", async () => {
+    const after = { ...CHOICE, needed: false, orgs: [CHOICE.orgs[0]] };
+    await send("POST", "/__test__/billing-choice", {
+      choice: CHOICE,
+      refuse: "not_owner",
+      afterRefusal: after,
+    });
+    const res = await send("PUT", "/v1/me/billing-choice", {
+      freeOrgSlug: "2222222222222222",
+    });
+    expect(res.status).toBe(409);
+    expect(await (await send("GET", "/v1/me/billing-choice")).json()).toEqual(
+      after,
+    );
+  });
 });
