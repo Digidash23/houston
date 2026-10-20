@@ -24,6 +24,7 @@
       </div>
       <div class="lfoot-col">
         <h4>{{ t.footer.company }}</h4>
+        <a href="{{ localeRoot }}{{ enterprise.path }}">{{ t.nav.enterprise }}</a>
         <a href="/vision/">{{ t.nav.vision }}</a>
         <a href="mailto:hello@gethouston.ai">{{ t.footer.contact }}</a>
       </div>
@@ -41,10 +42,13 @@
         {{ t.footer.credit }}
       </span>
       {# The quiet second way to switch language, for anyone who reads to the
-         end of the page. Same [data-lang-choice] contract as the nav menu. #}
+         end of the page. Same [data-lang-choice] contract as the nav menu.
+         `localePath` is set by a layout whose page exists in every locale
+         (enterprise.njk), so the row lands on that page; elsewhere it is
+         empty and the row lands on the locale's landing. #}
       <nav class="lfoot-lang" aria-label="{{ t.footer.langLabel }}">
         {%- for code in locales.order %}
-        <a href="{{ locales[code].dir }}" data-lang-choice="{{ code }}"{% if code == locale.code %} class="is-active" aria-current="true"{% endif %}>{{ locales[code].label }}</a>
+        <a href="{{ locales[code].dir }}{{ localePath }}" data-lang-choice="{{ code }}"{% if code == locale.code %} class="is-active" aria-current="true"{% endif %}>{{ locales[code].label }}</a>
         {%- endfor %}
       </nav>
       <span class="lfoot-legal">

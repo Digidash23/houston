@@ -1,0 +1,223 @@
+/*
+ * /enterprise — the hero and the industries panel.
+ *
+ * The hero borrows the B2C landing's fold mechanics (landing-hero.css:
+ * .hero, .hero-fold, .hero-cta) and nothing of its look: a full-bleed reel
+ * of real work (one clip per industry) under a scrim, a huge LIGHT statement
+ * (the site's 340 display weight, set big and tight, two short lines), one
+ * line under it and two pills, nothing else. The proof section (enterprise.css)
+ * follows right under the fold, on white.
+ *
+ * The industries' six photographs sit in the right column of the landing's
+ * split (landing-splits.css), names only.
+ */
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+/* The reel: six clips stacked, one shown, crossfading. The clips play their
+   own frames but nothing moves the layer itself (no drift, no parallax), so
+   PERFORMANCE.md rule 1 holds. */
+.ent-reel {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--ink-strong);
+}
+.ent-reel-clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.9s var(--ease-standard);
+}
+.ent-reel-clip.is-on {
+  opacity: 1;
+}
+/* Legibility first: the type sits over the middle of the frame, so the
+   middle is where the scrim is deepest; the top keeps the nav readable and
+   the floor darkens into the white page below. */
+.ent-reel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      ellipse 62% 52% at 50% 46%,
+      rgba(10, 10, 10, 0.6),
+      rgba(10, 10, 10, 0.3) 70%,
+      transparent
+    ),
+    linear-gradient(
+      180deg,
+      rgba(10, 10, 10, 0.55) 0%,
+      rgba(10, 10, 10, 0.28) 22%,
+      rgba(10, 10, 10, 0.32) 60%,
+      rgba(10, 10, 10, 0.8) 100%
+    );
+}
+.ent-fold {
+  justify-content: space-between;
+  padding-bottom: clamp(28px, 5vh, 52px);
+}
+/* No window to share the fold with: the statement takes the middle. */
+.ent-fold .hero-intro {
+  position: relative;
+  isolation: isolate;
+  margin-block: auto;
+  padding-block: clamp(24px, 6vh, 64px);
+}
+/* A feathered dark pool that travels with the text, so the headline reads
+   over the brightest frame of any clip (the white robot cell, the lit
+   warehouse). A gradient, not a frosted panel: blurring over moving video
+   re-rasterizes every frame (PERFORMANCE.md rule 2). */
+.ent-fold .hero-intro::before {
+  content: "";
+  position: absolute;
+  inset: -6% -4%;
+  z-index: -1;
+  background: radial-gradient(
+    closest-side,
+    rgba(8, 8, 8, 0.7),
+    rgba(8, 8, 8, 0.5) 55%,
+    rgba(8, 8, 8, 0) 100%
+  );
+  pointer-events: none;
+}
+/* The punch is scale and air, not weight: two short lines, very big, light. */
+.ent-h1 {
+  font-weight: 340;
+  /* Width sets the size; height caps it, so a short laptop screen (or a
+     longer language that wraps to three lines) stays inside the fold. */
+  font-size: clamp(44px, min(8.4vw, 11.5vh), 124px);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  color: #fff;
+  text-wrap: balance;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.35);
+}
+.ent-h1 span {
+  display: block;
+}
+.ent-sub {
+  margin-top: clamp(20px, 2.4vw, 30px);
+  max-width: 40ch;
+  font-size: clamp(16.5px, 1.5vw, 20px);
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.86);
+  text-wrap: balance;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.45);
+}
+.ent-fold .hero-cta {
+  margin-top: clamp(28px, 3.4vw, 40px);
+}
+/* The outline pill gets a faint fill so it holds over the brightest frames
+   of the reel (the welding sparks, the white retail store). */
+.ent-fold .btn-ghost {
+  background: rgba(10, 10, 10, 0.32);
+}
+.ent-fold .btn-ghost:hover {
+  background: rgba(10, 10, 10, 0.5);
+}
+.ent-fold .btn svg {
+  width: 15px;
+  height: 15px;
+}
+@media (max-width: 640px) {
+  .ent-fold {
+    padding-inline: var(--gutter);
+  }
+  .ent-fold .hero-cta {
+    width: 100%;
+  }
+  .ent-fold .hero-cta .btn {
+    width: 100%;
+  }
+}
+
+/* ── Industries: six photographs, names only ─────────────────────────────── */
+/* The right column of the landing's split: two across, three down. */
+.ent-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.ent-tile {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #1c1c1c;
+  isolation: isolate;
+}
+.ent-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 1.2s var(--ease-entrance),
+    filter var(--dur-elegant) var(--ease-standard);
+}
+.ent-tile.is-on img {
+  transform: scale(1.04);
+}
+.ent-tiles.is-dim .ent-tile:not(.is-on) img {
+  filter: grayscale(1) brightness(0.72) contrast(1.05);
+}
+/* One scrim, lifting the name off the photo. */
+.ent-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(10, 10, 10, 0.7),
+    rgba(10, 10, 10, 0.12) 48%,
+    rgba(10, 10, 10, 0) 64%
+  );
+}
+.ent-tile-cap {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  z-index: 1;
+  color: #fff;
+}
+.ent-tile-cap h3 {
+  font-size: clamp(18px, 1.7vw, 23px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+@media (max-width: 640px) {
+  .ent-cta .btn {
+    flex: 1 1 100%;
+  }
+  .ent-tiles {
+    gap: 6px;
+  }
+  .ent-tile {
+    border-radius: 14px;
+  }
+  .ent-tile-cap {
+    left: 12px;
+    right: 10px;
+    bottom: 11px;
+  }
+  .ent-tile-cap h3 {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ent-tile img {
+    transition: none;
+  }
+  .ent-tile.is-on img {
+    transform: none;
+  }
+}

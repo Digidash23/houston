@@ -1,0 +1,389 @@
+/*
+ * /enterprise — the page frame: shared primitives, the proof band and the
+ * contact panel. The problem cards live in enterprise-problem.css, the hero
+ * in enterprise-hero.css, the process slider in enterprise-solution.css.
+ *
+ * Everything here is the landing's own system (site-tokens.css + landing.css):
+ * the near-black hero ground with one white bloom, light 340-weight section
+ * titles, quiet --panel surfaces, hairlines, and the ink pill. This file adds
+ * layout, never a new palette. Strictly black and white: color appears only
+ * in the photographs.
+ */
+
+/* ── Shared bits ─────────────────────────────────────────────────────────── */
+/* In-page anchors land below the fixed nav. */
+.ent-section {
+  scroll-margin-top: 72px;
+}
+/* The small quiet label that names a group (industries, logos, compliance). */
+.ent-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-subtle);
+}
+.ent-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ent-cta .btn svg,
+.split-cta svg {
+  width: 15px;
+  height: 15px;
+}
+/* A section head as a two-column statement: the claim left, the reasoning
+   right, both resting on the same baseline. */
+.ent-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 20px clamp(32px, 6vw, 88px);
+  align-items: end;
+}
+.ent-head .sec-title {
+  font-size: clamp(30px, 3.7vw, 46px);
+  line-height: 1.07;
+  max-width: 21ch;
+}
+.ent-head .sec-lead {
+  margin-top: 0;
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+.ent-center {
+  text-align: center;
+}
+.ent-center .sec-title {
+  max-width: 17ch;
+  margin: 0 auto;
+}
+/* Section titles exactly as the landing sets them (landing.css .sec-title),
+   but allowed to run one line when they fit. */
+.ent-center .ent-title {
+  max-width: none;
+}
+/* The landing's section head caps at 760px; this page's titles are short
+   sentences that should run on one line when the measure allows. */
+.ent-section .mp-head {
+  max-width: none;
+}
+@media (max-width: 880px) {
+  .ent-head {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+/* The landing's breathing, measured on its #multiplayer section: the visual
+   starts ~173px under the title at 1440px (its tab pill and chat window sit
+   that far down), not the 40px the bare .mp-split margin gives. */
+.ent-section .mp-split {
+  margin-top: clamp(64px, 12vw, 172px);
+}
+/* The lines beside a section's title: the landing's .split-line, a step
+   bigger here (they are the only body copy), the second one strong. */
+.ent-section .split-line {
+  font-size: clamp(18px, 1.6vw, 21px);
+  line-height: 1.45;
+  max-width: 30ch;
+}
+.ent-section .split-line.is-strong {
+  color: var(--ink-strong);
+}
+.section.is-dark .split-line.is-strong {
+  color: #fff;
+}
+/* And, like the landing's story sections, each owns a viewport on desktop,
+   content centered in it. Phones stack to their natural height. */
+@media (min-width: 881px) {
+  #industries,
+  #problem {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+/* ── Proof: the number, then the belt ────────────────────────────────── */
+/* mercury.com's "Loved by 300K+" band, measured at 1440px: the section's
+   top to the sentence ~200px, the sentence 42px / 1.15 at weight 480 and
+   0.01em, one color, at most 672px wide. */
+/* Always on black, out of the page's tone flow (data-tone-fixed): the marks
+   are the light set (scripts/make-light-logos.sh), drawn for this ground. */
+.ent-proof {
+  background: var(--band-black);
+  padding-top: clamp(112px, 14vw, 200px);
+  padding-bottom: clamp(88px, 10vw, 144px);
+  text-align: center;
+}
+/* Two classes deep: landing.css widens every child of a dark band
+   (.section.is-dark > *), and this one keeps Mercury's narrow measure. */
+.ent-proof .ent-proof-head {
+  max-width: 672px;
+  margin: 0 auto;
+  font-size: clamp(28px, 2.92vw, 42px);
+  font-weight: 480;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--ink-strong);
+  text-wrap: balance;
+}
+.is-dark .ent-proof-head {
+  color: #fff;
+}
+.ent-proof .ent-belt {
+  max-width: none;
+  margin: 40px calc(50% - 50vw) 0;
+}
+/* Edge to edge of the screen, like Mercury's, the ends dissolving into the
+   page so marks fade in and out instead of being sliced. */
+.ent-belt-window {
+  display: flex;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+}
+/* Two identical tracks slide one full track-width together, so the second
+   takes the first's place the instant it leaves: no seam, no jump. */
+.ent-belt-track {
+  list-style: none;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 56px;
+  padding-right: 56px;
+  animation: ent-belt 110s linear infinite;
+}
+.ent-belt-window:hover .ent-belt-track {
+  animation-play-state: paused;
+}
+.ent-belt-track li {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 56px;
+}
+/* The light set, built from the dark artwork with its grays and soft edges
+   kept (scripts/make-light-logos.sh), so no filter here. A CSS knock-out
+   (brightness 0, invert) flattened two-tone marks and frayed fine edges. */
+.ent-belt-track img {
+  width: auto;
+  height: auto;
+  max-height: 36px;
+  max-width: 168px;
+  object-fit: contain;
+  opacity: 0.74;
+}
+@keyframes ent-belt {
+  to {
+    transform: translateX(-100%);
+  }
+}
+/* Phones: Mercury's 40px row. */
+@media (max-width: 640px) {
+  .ent-belt-track {
+    gap: 40px;
+    padding-right: 40px;
+  }
+  .ent-belt-track li {
+    height: 40px;
+  }
+  .ent-belt-track img {
+    max-height: 26px;
+    max-width: 120px;
+  }
+}
+/* No motion: the first list stands as a wrapped wall, the copy goes away. */
+@media (prefers-reduced-motion: reduce) {
+  .ent-belt-window {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .ent-belt-track {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 32px;
+    padding: 0;
+    animation: none;
+  }
+  .ent-belt-track[aria-hidden="true"] {
+    display: none;
+  }
+}
+
+/* ── Contact: the closing scene ─────────────────────────────────────────── */
+/* Full width, no box, generous air (the proof band's measure), and in the
+   page's tone flow, so on the way down it turns dark and meets the black
+   footer as one ending. Both dresses below: light by default, .is-dark when
+   the flow is dark. */
+.ent-contact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: clamp(112px, 14vw, 200px);
+  padding-bottom: clamp(112px, 14vw, 200px);
+  scroll-margin-top: 72px;
+}
+.ent-contact-faces {
+  display: flex;
+  margin-bottom: 32px;
+}
+.ent-contact-faces .face {
+  width: 56px;
+  height: 56px;
+  margin-left: -12px;
+  box-shadow: 0 0 0 3px var(--ground);
+}
+.ent-contact-faces .face:first-child {
+  margin-left: 0;
+}
+/* Two classes deep: landing.css widens every child of a dark band
+   (.section.is-dark > *); these keep their own measure. */
+.ent-contact .ent-contact-title {
+  max-width: 16ch;
+  font-size: clamp(36px, 5vw, 64px);
+  font-weight: 340;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--ink-strong);
+  text-wrap: balance;
+}
+.ent-contact .ent-contact-lead {
+  max-width: 42ch;
+  margin-top: clamp(18px, 2.2vw, 28px);
+  font-size: clamp(17px, 1.6vw, 21px);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  text-wrap: balance;
+}
+/* The one action: the process slider's "Book a call" pill. */
+.ent-contact-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  margin-top: clamp(32px, 4vw, 44px);
+  padding: 0 22px 0 26px;
+  border-radius: 999px;
+  background: var(--action);
+  color: var(--action-text);
+  font-size: 15.5px;
+  font-weight: 600;
+  transition: background-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-entrance);
+}
+.ent-contact-cta svg {
+  width: 18px;
+  height: 18px;
+}
+.ent-contact-cta:hover {
+  background: var(--action-hover);
+}
+.ent-contact-cta:active {
+  transform: scale(0.96);
+}
+/* The direct lines: one quiet row in the body voice. */
+.ent-contact-lines {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 14px;
+  margin-top: 28px;
+  font-size: 14.5px;
+  color: var(--ink-subtle);
+}
+.ent-contact-lines a {
+  padding: 6px 0;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.ent-contact-lines a:hover {
+  color: var(--ink-strong);
+}
+/* Phones: the row wraps, so the dots would dangle; the gap separates. */
+@media (max-width: 640px) {
+  .ent-contact-lines {
+    gap: 2px 20px;
+  }
+  .ent-contact-lines span {
+    display: none;
+  }
+}
+.is-dark .ent-contact-faces .face {
+  box-shadow: 0 0 0 3px var(--band-black);
+}
+.is-dark .ent-contact-title {
+  color: #fff;
+}
+.is-dark .ent-contact-lead {
+  color: var(--on-ink-muted);
+}
+.is-dark .ent-contact-cta {
+  background: #fff;
+  color: var(--ink-strong);
+}
+.is-dark .ent-contact-cta:hover {
+  background: #ececec;
+}
+.is-dark .ent-contact-lines {
+  color: var(--on-ink-faint);
+}
+.is-dark .ent-contact-lines a:hover {
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ent-contact-cta {
+    transition: none;
+  }
+}
+
+/* ── The bar on black ────────────────────────────────────────────────────
+   landing.css frosts the scrolled bar with #0d0d0d, but this page's black
+   ground is --band-black (#0a0a0a), so the bar read as a lighter strip.
+   The page's own black instead: over a black section the bar disappears
+   into it. (On white the bar's white already matches the ground.) */
+.lnav.scrolled {
+  background: color-mix(in srgb, var(--band-black) 92%, transparent);
+}
+.lnav.scrolled + .lnav-drop,
+.lnav + .lnav-drop {
+  background: color-mix(in srgb, var(--band-black) 97%, transparent);
+}
+
+/* Phones: the discovery-call label runs too long for the bar, so the pill
+   moves into the sheet as its last row. */
+.lnav-drop-cta {
+  display: none;
+}
+/* While the pill is hidden, the last language row closes the sheet. */
+@media (min-width: 641px) {
+  .lnav + .lnav-drop a.lnav-drop-lang:nth-last-child(2) {
+    border-bottom: none;
+  }
+}
+@media (max-width: 640px) {
+  .lnav .lnav-cta {
+    display: none;
+  }
+  .lnav-drop .lnav-drop-cta {
+    display: block;
+    font-weight: 600;
+  }
+}
+
+/* ── Nav collapse ────────────────────────────────────────────────────────
+   This page's five anchors run longer than the landing's (most of all in
+   Spanish), so the centered links meet the language menu before landing.css
+   moves them into the sheet at 1020px. Collapse them earlier here (the
+   discovery-call pill is wide too). */
+@media (max-width: 1240px) {
+  .lnav-links {
+    display: none;
+  }
+  .lnav-burger {
+    display: flex;
+  }
+}

@@ -1,0 +1,245 @@
+/*
+ * /enterprise — the solution: the process as one centered slide at a time
+ * (the title first, then each phase). Two levels of type, a big title and a
+ * smaller line under it, the proof band's pairing; a solid round chevron to
+ * the right of the text says "next". enterprise-process.js moves it.
+ */
+
+/* ── Spacing: exactly #compound, content in the middle of the screen ───── */
+@media (min-width: 881px) {
+  .ent-process-sec {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+/* ── The slider: back, the slide, next; the marks underneath ───────────── */
+.ent-slider {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  grid-template-areas:
+    "prev slides next"
+    ".    dots   .";
+  align-items: center;
+  column-gap: clamp(16px, 4vw, 56px);
+  text-align: center;
+}
+.ent-slider:focus-visible {
+  outline-offset: 12px;
+  border-radius: 16px;
+}
+.ent-slides {
+  grid-area: slides;
+}
+/* With JS the slides share one grid cell, so the slider is as tall as the
+   longest and nothing around it moves when they change. */
+html.js .ent-slides {
+  display: grid;
+}
+/* Each slide sits on the cell's floor, so the pill lands on the same line
+   above the marks on every slide and a short slide's air goes above its
+   title, not under the button. */
+html.js .ent-slide {
+  grid-area: 1 / 1;
+  align-self: end;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity 280ms var(--ease-standard),
+    transform 280ms var(--ease-entrance), visibility 0s linear 280ms;
+}
+html.js .ent-slide.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+.ent-slide + .ent-slide {
+  margin-top: 56px;
+}
+html.js .ent-slide + .ent-slide {
+  margin-top: 0;
+}
+/* The title: the landing's section-title voice. */
+.ent-slide-head {
+  max-width: 18ch;
+  margin: 0 auto;
+  font-size: clamp(34px, 5vw, 64px);
+  font-weight: 340;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--ink-strong);
+  text-wrap: balance;
+}
+/* The line under it: a step down in size and ink, with real air between. */
+.ent-slide-rest {
+  max-width: 40ch;
+  margin: clamp(18px, 2.2vw, 28px) auto 0;
+  font-size: clamp(17px, 1.6vw, 21px);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  text-wrap: balance;
+}
+
+/* ── Buttons and marks ───────────────────────────────────────────────────── */
+.ent-arrow {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-entrance);
+}
+.ent-arrow svg {
+  width: 22px;
+  height: 22px;
+}
+.ent-arrow:active:not(:disabled) {
+  transform: scale(0.96);
+}
+/* Forward is the one loud object: the ink pill, round. */
+.ent-arrow-next {
+  grid-area: next;
+  border: 0;
+  background: var(--action);
+  color: var(--action-text);
+}
+.ent-arrow-next:hover {
+  background: var(--action-hover);
+}
+/* Back stays quiet, and out of the way on the first slide. */
+.ent-arrow-prev {
+  grid-area: prev;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink-strong);
+}
+.ent-arrow-prev:hover:not(:disabled) {
+  border-color: var(--ink-strong);
+}
+.ent-arrow-prev:disabled {
+  opacity: 0;
+  cursor: default;
+}
+.ent-dots {
+  grid-area: dots;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: clamp(32px, 4vw, 48px);
+}
+.ent-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: width var(--dur-fast) var(--ease-entrance),
+    background-color var(--dur-fast) var(--ease-standard);
+}
+.ent-dots i.is-on {
+  width: 22px;
+  background: var(--ink-strong);
+}
+/* Every slide closes on the same pill that books the call, so all five
+   have one shape and the slider never sits on empty air. Inside the slide,
+   so it fades with it. */
+.ent-slide-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  margin-top: clamp(28px, 3.4vw, 40px);
+  padding: 0 22px 0 26px;
+  border-radius: 999px;
+  background: var(--action);
+  color: var(--action-text);
+  font-size: 15.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-entrance);
+}
+.ent-slide-cta svg {
+  width: 18px;
+  height: 18px;
+}
+.ent-slide-cta:hover {
+  background: var(--action-hover);
+}
+.ent-slide-cta:active {
+  transform: scale(0.96);
+}
+/* Nowhere further to go: next steps out of the way, like back does on the
+   first slide, and keeps its place so nothing shifts. */
+.ent-slider.is-last .ent-arrow-next {
+  opacity: 0;
+  pointer-events: none;
+}
+/* Phones: the text takes the full width, the buttons flank the marks. */
+@media (max-width: 640px) {
+  .ent-slider {
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    grid-template-areas:
+      "slides slides slides"
+      "prev   dots   next";
+    column-gap: 12px;
+  }
+  .ent-arrow {
+    width: 48px;
+    height: 48px;
+    margin-top: 32px;
+  }
+  /* The Spanish label runs long: a tighter pill keeps it on one line in a
+     390px screen. */
+  .ent-slide-cta {
+    height: 48px;
+    gap: 6px;
+    padding: 0 16px 0 18px;
+    font-size: 14px;
+  }
+}
+
+/* Its dark dress, for when the page's tone flow turns the ground black. */
+.is-dark .ent-slide-head {
+  color: #fff;
+}
+.is-dark .ent-slide-rest {
+  color: var(--on-ink-muted);
+}
+.is-dark .ent-arrow-next {
+  background: #fff;
+  color: var(--ink-strong);
+}
+.is-dark .ent-arrow-next:hover {
+  background: #ececec;
+}
+.is-dark .ent-slide-cta {
+  background: #fff;
+  color: var(--ink-strong);
+}
+.is-dark .ent-slide-cta:hover {
+  background: #ececec;
+}
+.is-dark .ent-arrow-prev {
+  border-color: var(--line-on-ink);
+  color: #fff;
+}
+.is-dark .ent-dots i {
+  background: var(--line-on-ink);
+}
+.is-dark .ent-dots i.is-on {
+  background: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.js .ent-slide,
+  .ent-arrow,
+  .ent-dots i {
+    transition: none;
+  }
+}
