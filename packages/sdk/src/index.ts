@@ -60,6 +60,7 @@ export {
 } from "./fan-out";
 export * from "./local-model-bridge";
 export type { ModuleContext } from "./module-context";
+export * from "./modules/billing/choice-model";
 export {
   DelegationCommand,
   type DelegationCommandType,

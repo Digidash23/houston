@@ -157,6 +157,7 @@ export const queryKeys = {
   plan: () => ["plan"] as const,
   plusInvoices: () => ["plus-invoices"] as const,
   planRoutines: () => ["plan-routines"] as const,
+  billingChoice: () => ["billing-choice"] as const,
   /** C8 spaces: one agent-move's progress, keyed by agent + moveId so two
    *  moves (or a retry with a fresh id) never share a poll. */
   agentMove: (agentId: string, moveId: string) =>

@@ -129,5 +129,73 @@
       "creatorPlan": "This routine runs on its creator's Free plan, which limits how often it can run."
     },
     "purchaseLinkTitle": "This link isn't available in the app"
+  },
+  "choice": {
+    "notice": {
+      "lead": "Starting {{date}}, plans move to organizations.",
+      "rest": "Each account keeps one free organization. Other organizations are {{price}} per member per month.",
+      "restPayer": "Each account keeps one free organization. Other organizations are {{price}} per member per month. Your subscription moves to the organization you choose.",
+      "restMember": "Each account keeps one free organization. Other organizations are {{price}} per member per month. Your organization's owner will choose.",
+      "singleOrg": "{{name}} stays free. Other organizations are {{price}} per member per month.",
+      "singleOrgPayer": "Your subscription will pay for {{name}}, at {{price}} per member per month.",
+      "choose": "Choose your free organization",
+      "dismiss": "Dismiss"
+    },
+    "picked": {
+      "lead": "{{name}} stays free.",
+      "others": "Your other organizations need a plan from {{day}}.",
+      "paid": "Your subscription pays for {{name}} from {{day}}.",
+      "paidOthers": "Your subscription pays for {{name}}, and your other organizations need a plan from {{day}}.",
+      "change": "Change"
+    },
+    "picker": {
+      "title": "Which organization stays free?",
+      "body": "The free one shares {{limit}} messages a week across everyone in it. In the others, you can still open everything and move AI Employees out, but nobody can send messages until it's upgraded.",
+      "mostActive": "Most active",
+      "personal": "Personal",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "messages_one": "{{count}} message in the last 30 days",
+      "messages_other": "{{count}} messages in the last 30 days",
+      "noMessages": "No messages in the last 30 days",
+      "meta": "{{first}} · {{second}}",
+      "until": "You can change this until {{day}}.",
+      "keep": "Keep {{name}} free",
+      "close": "Close",
+      "step": "Step {{step}} of 2"
+    },
+    "payer": {
+      "title": "Your subscription now pays for one organization.",
+      "body": "Pick the one your Plus plan covers. It's billed per member each month.",
+      "each": "{{price}} each",
+      "perMonth": "per month",
+      "staysFree": "Stays free",
+      "yourFree": "Your free organization",
+      "grace": "Your price stays {{today}} a month until {{date}}, then it's {{monthly}} a month.",
+      "noGrace": "Your price stays {{monthly}} a month.",
+      "back": "Back",
+      "use": "Use my plan for {{name}}"
+    },
+    "refused": {
+      "not_owner": {
+        "title": "You don't own that organization",
+        "body": "Only its owner can choose for it. Pick one of yours."
+      },
+      "not_payer": {
+        "title": "There's no subscription to move",
+        "body": "Choose only the organization that stays free."
+      },
+      "same_org": {
+        "title": "Pick two different organizations",
+        "body": "The free organization can't also be the one your subscription pays for."
+      }
+    },
+    "settings": {
+      "title": "Choose your free organization",
+      "pending": "Plans move to organizations on {{date}}. Pick the one that stays free.",
+      "picked": "{{name}} stays free from {{day}}.",
+      "choose": "Choose",
+      "change": "Change"
+    }
   }
 }

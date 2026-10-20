@@ -129,5 +129,73 @@
       "creatorPlan": "Esta rotina usa o plano Grátis de quem a criou, que limita quantas vezes ela pode rodar."
     },
     "purchaseLinkTitle": "Este link não está disponível no app"
+  },
+  "choice": {
+    "notice": {
+      "lead": "A partir de {{date}}, os planos passam para as organizações.",
+      "rest": "Cada conta mantém uma organização grátis. As outras organizações custam {{price}} por membro por mês.",
+      "restPayer": "Cada conta mantém uma organização grátis. As outras organizações custam {{price}} por membro por mês. Sua assinatura passa para a organização que você escolher.",
+      "restMember": "Cada conta mantém uma organização grátis. As outras organizações custam {{price}} por membro por mês. O proprietário da sua organização vai escolher.",
+      "singleOrg": "{{name}} continua grátis. As outras organizações custam {{price}} por membro por mês.",
+      "singleOrgPayer": "Sua assinatura vai pagar {{name}}, a {{price}} por membro por mês.",
+      "choose": "Escolha sua organização grátis",
+      "dismiss": "Dispensar"
+    },
+    "picked": {
+      "lead": "{{name}} continua grátis.",
+      "others": "Suas outras organizações precisam de um plano a partir de {{day}}.",
+      "paid": "Sua assinatura paga {{name}} a partir de {{day}}.",
+      "paidOthers": "Sua assinatura paga {{name}}, e suas outras organizações precisam de um plano a partir de {{day}}.",
+      "change": "Alterar"
+    },
+    "picker": {
+      "title": "Qual organização continua grátis?",
+      "body": "A grátis compartilha {{limit}} mensagens por semana entre todas as pessoas dela. Nas outras, você ainda pode abrir tudo e tirar seus funcionários de IA, mas ninguém pode enviar mensagens até ela ter um plano.",
+      "mostActive": "Mais ativa",
+      "personal": "Pessoal",
+      "members_one": "{{count}} membro",
+      "members_other": "{{count}} membros",
+      "messages_one": "{{count}} mensagem nos últimos 30 dias",
+      "messages_other": "{{count}} mensagens nos últimos 30 dias",
+      "noMessages": "Nenhuma mensagem nos últimos 30 dias",
+      "meta": "{{first}} · {{second}}",
+      "until": "Você pode mudar isso até {{day}}.",
+      "keep": "Manter {{name}} grátis",
+      "close": "Fechar",
+      "step": "Passo {{step}} de 2"
+    },
+    "payer": {
+      "title": "Sua assinatura agora paga uma só organização.",
+      "body": "Escolha a que o seu plano Plus cobre. A cobrança é por membro, todo mês.",
+      "each": "{{price}} cada",
+      "perMonth": "por mês",
+      "staysFree": "Continua grátis",
+      "yourFree": "Sua organização grátis",
+      "grace": "Seu preço continua {{today}} por mês até {{date}}, e depois passa para {{monthly}} por mês.",
+      "noGrace": "Seu preço continua {{monthly}} por mês.",
+      "back": "Voltar",
+      "use": "Usar meu plano para {{name}}"
+    },
+    "refused": {
+      "not_owner": {
+        "title": "Você não é proprietário dessa organização",
+        "body": "Só o proprietário dela pode escolher. Escolha uma das suas."
+      },
+      "not_payer": {
+        "title": "Não há uma assinatura para mover",
+        "body": "Escolha só a organização que continua grátis."
+      },
+      "same_org": {
+        "title": "Escolha duas organizações diferentes",
+        "body": "A organização grátis não pode ser também a que sua assinatura paga."
+      }
+    },
+    "settings": {
+      "title": "Escolha sua organização grátis",
+      "pending": "Os planos passam para as organizações em {{date}}. Escolha a que continua grátis.",
+      "picked": "{{name}} continua grátis a partir de {{day}}.",
+      "choose": "Escolher",
+      "change": "Alterar"
+    }
   }
 }

@@ -25,7 +25,9 @@ Calling an operation returns the host's raw response. Where the adapter function
 - `createCheckout`: Starts the checkout that subscribes the team workspace to a paid plan. **Confirmation required.**
 - `createPlusCheckout`: Start a Plus subscription checkout. **Confirmation required.**
 - `getBilling`: Shows the plan, trial, and payment status of the team workspace.
+- `getChoice`: Shows which organization stays free when plans move to organizations, and which one a subscription pays for.
 - `listPlusInvoices`: List the person's recent Plus invoices.
+- `setChoice`: Chooses which organization stays free, and for a Plus subscriber which organization the subscription pays for. **Confirmation required.**
 
 ## channels
 

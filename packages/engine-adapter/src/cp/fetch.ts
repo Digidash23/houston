@@ -115,12 +115,13 @@ export function gatewayAuthFetch(
             : input.url,
         "http://houston.invalid",
       ).pathname;
-      const personalPlan =
+      const accountScoped =
         path.startsWith("/v1/me/plan") ||
         path.startsWith("/v1/me/plus/") ||
         path.startsWith("/v1/me/routines") ||
+        path.startsWith("/v1/me/billing-choice") ||
         path === "/v1/me/presence";
-      const org = personalPlan ? null : getOrg?.();
+      const org = accountScoped ? null : getOrg?.();
       if (org) headers.set("x-houston-org", org);
       // Build identity: `<semver>+<channel>` on every gateway request, for
       // log/debug attribution (nothing server-side acts on it — the version

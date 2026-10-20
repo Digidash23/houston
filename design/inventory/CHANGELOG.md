@@ -3,6 +3,20 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v137 - 2026-10-20
+
+Cloud users hear about plans moving to organizations before it happens. A
+slim bar at the top of the main screen names the day the change starts and
+says each account keeps one free organization. An owner of several
+organizations chooses which one stays free from the bar: a dialog on
+desktop and a bottom sheet on phones lists them busiest first, with members
+and messages from the last 30 days and the busiest tagged and preselected.
+A Plus subscriber then picks the organization the subscription pays for and
+sees its monthly total and when extra members start to bill. Once chosen,
+the bar becomes one quiet line with a Change action. Members of someone
+else's organization read that its owner chooses. Billing in Settings keeps
+a way back to the choice while it is open.
+
 ## v136 - 2026-10-16
 
 The org chart posts to LinkedIn as a real picture. The share image is a 4:5

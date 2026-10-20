@@ -54,7 +54,8 @@
     "submitCustomIntegrationCredential": "Salvar o segredo que termina de configurar este app.",
     "updateActivity": "Atualizar os detalhes ou o status desta missão.",
     "updateRoutine": "Atualizar o horário ou as instruções desta rotina.",
-    "writeAgentFile": "Substituir o conteúdo de um dos arquivos salvos do funcionário de IA."
+    "writeAgentFile": "Substituir o conteúdo de um dos arquivos salvos do funcionário de IA.",
+    "setChoice": "Escolher qual organização continua grátis quando os planos passarem para as organizações. As outras vão precisar de um plano pago para continuar enviando mensagens."
   },
   "arguments": {
     "agentId": "funcionário de IA",
@@ -148,6 +149,9 @@
     },
     "saveSkill": {
       "slug": "habilidade"
+    },
+    "setChoice": {
+      "pick": "organizações"
     },
     "submitAgentCustomIntegrationCredential": {
       "slug": "app"

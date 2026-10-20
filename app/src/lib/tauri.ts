@@ -17,6 +17,7 @@
 
 import type {
   AddCustomIntegrationInput,
+  BillingChoicePick,
   CredentialScope,
   CustomEndpoint,
   EditableProfileUpdate,
@@ -1978,6 +1979,16 @@ export const tauriOrg = {
   dismissPlanAnnouncement: () =>
     call("dismiss_plan_announcement", () =>
       getEngine().dismissPlanAnnouncement(),
+    ),
+  /** The account-wide free-org pick; null off cloud or before the change. */
+  getBillingChoice: () =>
+    call("get_billing_choice", () => getEngine().getBillingChoice()),
+  /** Store the pick. `not_owner`/`not_payer`/`same_org` come back as outcomes. */
+  setBillingChoice: (pick: BillingChoicePick) =>
+    call("set_billing_choice", () => getEngine().setBillingChoice(pick)),
+  dismissBillingChoiceNotice: () =>
+    call("dismiss_billing_choice_notice", () =>
+      getEngine().dismissBillingChoiceNotice(),
     ),
   /** C19: start a Plus checkout. The refusals a person can be in (already
    *  Plus, account being deleted, plan off) are silenced here: the checkout

@@ -7,6 +7,7 @@ import { FallbackLink } from "../../shell/fallback-link";
 import { UsageCard } from "./billing-cards";
 import { BillingInvoices } from "./billing-invoices";
 import { UpgradeCard } from "./billing-upgrade-card";
+import { FreeOrgChoiceRow } from "./free-org-choice-row";
 import { CurrentPlanCard } from "./plan-current-card";
 
 export function PlanSection() {
@@ -30,6 +31,7 @@ export function PlanSection() {
           </Button>
         </p>
       </header>
+      <FreeOrgChoiceRow />
       {isLoading ? (
         <div className="space-y-5" role="status" aria-label={t("loading")}>
           <Skeleton className="h-28 w-full rounded-xl" />

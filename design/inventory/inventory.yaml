@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 136
+version: 137
 
 components:
   - id: agent-delegation-settings
@@ -2465,3 +2465,40 @@ components:
       Billing; the phone closes More and resets navigation.
     a11y: Every variant is one button named "Upgrade to Plus" plus the usage state, and the icon rail shows that name as a tooltip. Warning and limit states use text and an icon as well as color.
     since: 121
+
+  - id: billing-change-banner
+    title: Pricing change announcement
+    purpose: Tell a cloud user, before plans move to organizations, which org stays free and let an owner choose it.
+    anatomy: [calendar-mark, date-sentence, detail-sentence, choose-action, change-action, success-check, dismiss-button]
+    states: [hidden, pick, pick-payer, picked, single-org, member]
+    variants: [phone, desktop]
+    behavior: >-
+      SDK choiceNotice picks the variant from the account's billing choice:
+      pick for an owner of several orgs who has not chosen (a Plus or comp
+      payer also reads that the subscription moves), picked once a pick is
+      stored, single-org for the owner of one, member inside an org someone
+      else owns, hidden once dismissed, applied, or past the cutover. The date
+      is the server's cutoverAt in the reader's language. Cloud only. It sits
+      at the top of the main screen card, never over the sidebar; desktop is
+      one line, phone wraps the action onto its own row. Dismiss hides it on
+      every device.
+    a11y: The bar is a status region; Dismiss is a labelled icon button; every action is a visible button, never hover-only.
+    since: 137
+
+  - id: free-org-picker
+    title: Free organization picker
+    purpose: Let an owner choose which org stays free and, for a payer, which org the subscription pays for.
+    anatomy: [step-label, title, body, org-radio-cards, most-active-tag, member-and-activity-meta, monthly-total, free-org-row, grace-note, back-action, primary-action, change-until-hint, close-button]
+    states: [free-step, paid-step, saving, refused]
+    variants: [desktop-dialog, phone-bottom-sheet]
+    behavior: >-
+      SDK pickerRows lists owned orgs busiest first (30-day messages, then
+      latest activity, then the personal org) and tags the busiest. The stored
+      pick, else the busiest, is preselected. A Plus or comp payer gets a
+      second step in the same frame with each org's monthly total from
+      payerTotals and the free pick shown as a disabled row. Save calls
+      setChoice; not_owner, not_payer and same_org come back as outcomes with
+      their own copy. The Settings plan screen keeps a row that reopens it
+      while the pick is open.
+    a11y: Each step is a radio group of full-row labelled radios with a visible focus ring; the frame is a titled dialog with a labelled close button.
+    since: 137
