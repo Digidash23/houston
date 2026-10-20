@@ -1,106 +1,21 @@
 /*
- * /enterprise — the problem: four short reasons, each a line drawing, on the
- * black band. Tokens from site-tokens.css.
+ * /enterprise — the problem: four short reasons, each a photograph from the
+ * industries' overhead series, on the black band. The tiles themselves are
+ * .ent-tile (enterprise-hero.css); this file only lays them out.
  */
 
-/* ── The problem: four line drawings ─────────────────────────────────────── */
-/* The right column of the landing's split: two across, two down. */
+/* The left column of the landing's split: two across, two down, square. */
 .ent-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
-.ent-card {
-  display: flex;
-  flex-direction: column;
-  padding: 20px 22px 26px;
-  border-radius: 20px;
-  background: var(--panel);
+.ent-tile-square {
+  aspect-ratio: 1;
 }
-.ent-art {
-  height: 140px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 20px;
-}
-.ent-art svg {
-  width: 100%;
-  max-width: 228px;
-  height: auto;
-  overflow: visible;
-}
-.ent-art .k,
-.ent-art .m,
-.ent-art .x {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-.ent-art .k {
-  stroke: var(--ink-strong);
-  stroke-width: 1.1;
-}
-.ent-art .f {
-  opacity: 0.3;
-}
-.ent-art .m {
-  stroke: var(--ink-subtle);
-  stroke-width: 1;
-  stroke-dasharray: 2 4;
-  opacity: 0.7;
-}
-.ent-art .x {
-  stroke: var(--ink-strong);
-  stroke-width: 1.9;
-}
-.ent-art .d {
-  fill: var(--ink-strong);
-}
-.ent-art text {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  fill: var(--ink-subtle);
-}
-/* The reason is the only text: big, in the light display voice. */
-.ent-card h3 {
-  font-size: clamp(20px, 1.9vw, 25px);
-  font-weight: 340;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--ink-strong);
-}
-/* On the black band: the card turns into the landing's dark tile and the
-   line work turns white. */
-.is-dark .ent-card {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-}
-.is-dark .ent-art .k,
-.is-dark .ent-art .x {
-  stroke: #fff;
-}
-.is-dark .ent-art .m {
-  stroke: rgba(255, 255, 255, 0.6);
-}
-.is-dark .ent-art .d {
-  fill: #fff;
-}
-.is-dark .ent-art text {
-  fill: rgba(255, 255, 255, 0.6);
-}
-.is-dark .ent-card h3 {
-  color: #fff;
-}
-/* Phones keep the 2x2: the reasons are a few words each. */
-@media (max-width: 560px) {
-  .ent-card {
-    padding: 14px 14px 18px;
-  }
-  .ent-art {
-    height: 96px;
-    margin-bottom: 12px;
+@media (max-width: 640px) {
+  .ent-cards {
+    gap: 6px;
   }
 }
 

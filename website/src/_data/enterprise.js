@@ -19,8 +19,9 @@ export default {
     people: ["felipe", "julian"],
   },
 
-  // Zips with t.enterprise.hero.industries. Photos are 1440x1080 (Pexels),
-  // all below the fold now, so all lazy.
+  // Zips with t.enterprise.hero.industries. Photos are 1080x810, one overhead
+  // series with one grade (sources: assets/img/enterprise/README.md), all
+  // below the fold, so all lazy.
   industries: [
     { id: "logistics" },
     { id: "real-estate" },
@@ -29,6 +30,10 @@ export default {
     { id: "insurance" },
     { id: "manufacturing" },
   ],
+
+  // Zips with t.enterprise.problem.cards: the photo behind each reason, at
+  // assets/img/enterprise/problem/<id>.webp (960x720, same series).
+  problems: ["owns", "build", "connected", "followthrough"],
 
   // The hero reel: industries in pairs, looped. Each pair is the industry,
   // then a person in it working on a tablet, which is where an agent would

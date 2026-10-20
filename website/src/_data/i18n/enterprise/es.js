@@ -26,32 +26,32 @@ export default {
     industriesLabel: "Donde ponemos la IA a trabajar.",
     industriesPhrases: [
       "La mayoría de la IA nunca sale del piloto.",
-      "La nuestra hace el trabajo diario de seis industrias.",
+      "La nuestra hace el trabajo diario de empresas de todas las industrias.",
     ],
     industries: [
       {
         name: "Logística",
-        alt: "Un camión de carga en una carretera con curvas",
+        alt: "Contenedores apilados en un puerto, vistos desde arriba",
       },
       {
         name: "Bienes raíces",
-        alt: "Una mano que sostiene las llaves de una casa nueva",
+        alt: "Casas alrededor de una calle sin salida, vistas desde arriba",
       },
       {
         name: "Retail",
-        alt: "El mostrador de una boutique de ropa",
+        alt: "Puestos de mercado bajo toldos rojos y azules, vistos desde arriba",
       },
       {
         name: "Banca",
-        alt: "La rueda de bronce de la puerta de una bóveda bancaria",
+        alt: "Las calles de una ciudad iluminadas de noche, vistas desde arriba",
       },
       {
         name: "Seguros",
-        alt: "Un inspector con una tabla de apuntes revisando una ventana",
+        alt: "Un intercambio vial en forma de trébol, visto desde arriba",
       },
       {
         name: "Manufactura",
-        alt: "Un soldador trabajando entre chispas",
+        alt: "Tuberías y maquinaria en el techo de una fábrica, vistas desde arriba",
       },
     ],
   },
@@ -69,19 +69,22 @@ export default {
       "Todas las empresas están comprando herramientas de IA.",
       "Casi ninguna tiene el equipo para hacerlas funcionar.",
     ],
-    art: { inbox: "CORREO", target: "META" },
     cards: [
       {
         title: "Nadie es dueño",
+        alt: "Un solo carro en un estacionamiento vacío, visto desde arriba",
       },
       {
         title: "Nadie la construye",
+        alt: "Estibas de ladrillos y montones de arena en un terreno vacío, vistos desde arriba",
       },
       {
         title: "Nada está conectado",
+        alt: "Una glorieta nueva cuyas vías terminan en arena, vista desde arriba",
       },
       {
         title: "Nadie le da seguimiento",
+        alt: "Una obra sin terminar que el bosque volvió a cubrir, vista desde arriba",
       },
     ],
   },

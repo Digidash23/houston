@@ -39,12 +39,14 @@ for (const code of Object.keys(locales)) {
     const pairs = [
       ["industries", enterprise.industries, copy.hero.industries],
       ["hero lines", [0, 1], copy.hero.h1Lines],
+      ["problems", enterprise.problems, copy.problem.cards],
     ];
     for (const [name, structure, text] of pairs) {
       assert.equal(text.length, structure.length, name);
     }
-    // problem.njk draws one line illustration per card.
-    assert.equal(copy.problem.cards.length, 4);
+    for (const card of copy.problem.cards) {
+      assert.ok(card.title && card.alt, card.title);
+    }
   });
 
   test(`${code}: the settled number is the one the count-up lands on`, () => {
@@ -67,10 +69,14 @@ for (const code of Object.keys(locales)) {
   });
 }
 
-test("every industry photo exists", () => {
-  for (const { id } of enterprise.industries) {
-    const file = `assets/img/enterprise/industries/${id}.webp`;
-    assert.ok(existsSync(resolve(src, file)), file);
+test("every industry and problem photo exists", () => {
+  const files = [
+    ...enterprise.industries.map(({ id }) => `industries/${id}.webp`),
+    ...enterprise.problems.map((id) => `problem/${id}.webp`),
+  ];
+  for (const file of files) {
+    const path = `assets/img/enterprise/${file}`;
+    assert.ok(existsSync(resolve(src, path)), path);
   }
 });
 

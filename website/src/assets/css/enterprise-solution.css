@@ -145,7 +145,8 @@ html.js .ent-slide + .ent-slide {
 /* The last slide's way forward: the chevron gives way to a pill that books
    the call, the same ink and height, centered under the text where the marks
    were (its label is too long to sit beside the slide). */
-.ent-slider-cta {
+.ent-slider-cta,
+.ent-slide-cta {
   grid-area: dots;
   justify-self: center;
   display: none;
@@ -163,14 +164,17 @@ html.js .ent-slide + .ent-slide {
   transition: background-color var(--dur-fast) var(--ease-standard),
     transform var(--dur-fast) var(--ease-entrance);
 }
-.ent-slider-cta svg {
+.ent-slider-cta svg,
+.ent-slide-cta svg {
   width: 18px;
   height: 18px;
 }
-.ent-slider-cta:hover {
+.ent-slider-cta:hover,
+.ent-slide-cta:hover {
   background: var(--action-hover);
 }
-.ent-slider-cta:active {
+.ent-slider-cta:active,
+.ent-slide-cta:active {
   transform: scale(0.96);
 }
 .ent-slider.is-last .ent-arrow-next,
@@ -178,6 +182,10 @@ html.js .ent-slide + .ent-slide {
   display: none;
 }
 .ent-slider.is-last .ent-slider-cta {
+  display: inline-flex;
+}
+/* The first slide's own pill: inside the slide, so it fades with it. */
+.ent-slide-cta {
   display: inline-flex;
 }
 /* Phones: the text takes the full width, the buttons flank the marks. */
@@ -221,11 +229,13 @@ html.js .ent-slide + .ent-slide {
 .is-dark .ent-arrow-next:hover {
   background: #ececec;
 }
-.is-dark .ent-slider-cta {
+.is-dark .ent-slider-cta,
+.is-dark .ent-slide-cta {
   background: #fff;
   color: var(--ink-strong);
 }
-.is-dark .ent-slider-cta:hover {
+.is-dark .ent-slider-cta:hover,
+.is-dark .ent-slide-cta:hover {
   background: #ececec;
 }
 .is-dark .ent-arrow-prev {

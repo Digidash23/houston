@@ -26,32 +26,32 @@ export default {
     industriesLabel: "Onde colocamos a IA para trabalhar.",
     industriesPhrases: [
       "A maioria da IA nunca sai do piloto.",
-      "A nossa faz o trabalho diário de seis setores.",
+      "A nossa faz o trabalho diário de empresas de todos os setores.",
     ],
     industries: [
       {
         name: "Logística",
-        alt: "Um caminhão de carga em uma estrada sinuosa",
+        alt: "Contêineres empilhados em um porto, vistos de cima",
       },
       {
         name: "Imobiliário",
-        alt: "Uma mão segurando as chaves de uma casa nova",
+        alt: "Casas em volta de uma rua sem saída, vistas de cima",
       },
       {
         name: "Varejo",
-        alt: "O balcão de uma boutique de roupas",
+        alt: "Barracas de feira sob toldos vermelhos e azuis, vistas de cima",
       },
       {
         name: "Bancos",
-        alt: "A roda de bronze da porta de um cofre de banco",
+        alt: "As ruas de uma cidade iluminadas à noite, vistas de cima",
       },
       {
         name: "Seguros",
-        alt: "Um inspetor com uma prancheta conferindo uma janela",
+        alt: "Um trevo rodoviário, visto de cima",
       },
       {
         name: "Indústria",
-        alt: "Um soldador trabalhando entre faíscas",
+        alt: "Tubulações e máquinas no telhado de uma fábrica, vistas de cima",
       },
     ],
   },
@@ -69,19 +69,22 @@ export default {
       "Toda empresa está comprando ferramentas de IA.",
       "Quase nenhuma tem o time para fazê-las funcionar.",
     ],
-    art: { inbox: "E-MAIL", target: "META" },
     cards: [
       {
         title: "Ninguém é dono",
+        alt: "Um único carro em um estacionamento vazio, visto de cima",
       },
       {
         title: "Ninguém para construir",
+        alt: "Paletes de tijolos e montes de areia em um terreno vazio, vistos de cima",
       },
       {
         title: "Nada está conectado",
+        alt: "Uma rotatória nova cujas ruas terminam na areia, vista de cima",
       },
       {
         title: "Ninguém dá continuidade",
+        alt: "Uma obra inacabada tomada pela floresta, vista de cima",
       },
     ],
   },
