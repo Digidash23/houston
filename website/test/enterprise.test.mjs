@@ -67,6 +67,17 @@ for (const code of Object.keys(locales)) {
       assert.ok(tree.js.people[id], id);
     }
   });
+
+  // The landing's company band names the same rollout /enterprise walks
+  // through, one step per phase.
+  test(`${code}: the landing's company band lists every phase`, () => {
+    const { companies, hero } = tree;
+    assert.equal(companies.steps.length, copy.solution.phases.length);
+    for (const key of ["title", "lead", "cta", "more"]) {
+      assert.ok(companies[key], key);
+    }
+    assert.ok(hero.ctaCompanies);
+  });
 }
 
 test("every industry and problem photo exists", () => {

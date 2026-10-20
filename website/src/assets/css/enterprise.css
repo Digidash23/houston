@@ -344,7 +344,7 @@
 /* ── Nav collapse ────────────────────────────────────────────────────────
    This page's five anchors run longer than the landing's (most of all in
    Spanish), so the centered links meet the language menu before landing.css
-   moves them into the sheet at 1020px. Collapse them earlier here (the
+   moves them into the sheet at 1200px. Collapse them earlier here (the
    discovery-call pill is wide too). */
 @media (max-width: 1240px) {
   .lnav-links {

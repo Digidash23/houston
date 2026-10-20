@@ -250,3 +250,38 @@
 .lnav:not(.scrolled) .lnav-burger {
   color: #fff;
 }
+
+/* The quiet route for a company buyer who arrives ready (hero.njk): a text
+   link under the buttons, to /enterprise. Quiet on purpose: the hero sells
+   the free app, this only shows the door. */
+.hero-companies {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 6px 0;
+  font-size: 14.5px;
+  color: var(--on-ink-faint);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.hero-companies svg {
+  width: 15px;
+  height: 15px;
+}
+.hero-companies:hover {
+  color: #fff;
+}
+/* Phones: the line wraps, so it flows as text and the chevron rides on the
+   last word instead of standing apart at the right edge. */
+@media (max-width: 640px) {
+  .hero-companies {
+    display: block;
+    max-width: 30ch;
+    margin-inline: auto;
+    text-wrap: balance;
+  }
+  .hero-companies svg {
+    display: inline;
+    vertical-align: -3px;
+  }
+}

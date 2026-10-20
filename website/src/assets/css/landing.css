@@ -490,11 +490,13 @@ img {
 /* ── Nav collapse (the missing breakpoints) ────────────────────────────────
    The burger and the dropdown sheet always existed in markup and JS, but no
    media query ever hid the centered links or showed the burger, so on
-   narrow screens the links overlapped the wordmark. Below 1020px the links
+   narrow screens the links overlapped the wordmark. Below 1200px the links
    move into the sheet; below 560px the GitHub icon and the language menu
    follow them (both have rows in the sheet), leaving brand + Download +
    burger. */
-@media (max-width: 1020px) {
+/* 1200, not less: with Enterprise in the row, Spanish needs about that much
+   before the centered links meet the GitHub icon (measured, es tightest). */
+@media (max-width: 1200px) {
   .lnav-links {
     display: none;
   }

@@ -65,6 +65,9 @@ export default {
     sub: "Houston le da a tu equipo un solo lugar para usar agentes de IA, con cualquier modelo y conectados a las herramientas que ya usan, para que cada agente y todo lo que aprende sea de la empresa y no de la cuenta de una persona.",
     ctaDownload: "Descargar la app",
     ctaSeeHow: "Ver cómo funciona",
+    // The quiet route for a company buyer who arrives ready: under the
+    // buttons, to /enterprise.
+    ctaCompanies: "¿Lo quieres para toda tu empresa? Habla con nuestro equipo",
     windowAlt:
       "Houston, la app de escritorio: el tablero de misiones compartido de un equipo, donde los agentes mueven tareas entre En curso, Necesita tu atención y Listo, con las caras de quienes están en cada misión agrupadas al lado",
     app: {
@@ -409,8 +412,23 @@ export default {
         "Revisión de seguridad",
         "Puesta en marcha para todo el equipo",
       ],
-      cta: "Hablemos",
+      cta: "Saber más",
     },
+  },
+
+  // The band after pricing that hands a team that already uses Houston to
+  // /enterprise: the company step of the ladder (Free, Team, Enterprise).
+  companies: {
+    title: "¿Tu equipo ya lo usa? Llévalo a toda la empresa.",
+    lead: "Nuestros ingenieros lo hacen contigo, de la primera llamada a todos los equipos, en cerca de un mes.",
+    steps: [
+      "Llamada de descubrimiento",
+      "Piloto pagado de 4 semanas",
+      "Tus sistemas conectados",
+      "Medimos y expandimos",
+    ],
+    cta: "Agenda una llamada de descubrimiento",
+    more: "Mira cómo funciona",
   },
 
   faq: {
