@@ -40,6 +40,12 @@ test("an owner picks the org that stays free, and the bar reads it back", async 
     .click();
 
   const dialog = picker(page);
+  await expect(
+    page.getByRole("dialog", { name: "Which organization stays free?" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("radiogroup", { name: "Which organization stays free?" }),
+  ).toBeVisible();
   await expect(dialog.getByRole("radio")).toHaveCount(3);
   await expect(dialog.locator("label").first()).toContainText(
     "La FilaMost active1 member · 396 messages in the last 30 days",

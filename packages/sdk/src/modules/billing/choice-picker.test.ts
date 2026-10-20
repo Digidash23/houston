@@ -58,6 +58,16 @@ describe("reconcilePick", () => {
       free: INNOVA.slug,
       paid: null,
     });
+    const paidKept = {
+      step: "paid" as const,
+      free: LA_FILA.slug,
+      paid: PERSONAL.slug,
+    };
+    expect(reconcilePick(left, paidKept)).toEqual({
+      step: "free",
+      free: INNOVA.slug,
+      paid: PERSONAL.slug,
+    });
     const paidGone = choice({ payer: "plus", orgs: [PERSONAL, LA_FILA] });
     expect(reconcilePick(paidGone, paidStep)).toEqual({
       step: "free",

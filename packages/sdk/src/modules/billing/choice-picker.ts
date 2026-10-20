@@ -35,11 +35,13 @@ export function reconcilePick(
 ): PickerState {
   const owned = (slug: string | null) =>
     slug !== null && choice.orgs.some((org) => org.slug === slug);
-  const free = owned(state.free) ? state.free : defaultFreeOrg(choice);
+  const freeKept = owned(state.free);
+  const free = freeKept ? state.free : defaultFreeOrg(choice);
   const paidOk =
     choosesPaidOrg(choice) && owned(state.paid) && state.paid !== free;
+  // A replaced free org goes back to the free step to be confirmed.
   return {
-    step: state.step === "paid" && paidOk ? "paid" : "free",
+    step: state.step === "paid" && paidOk && freeKept ? "paid" : "free",
     free,
     paid: paidOk ? state.paid : null,
   };

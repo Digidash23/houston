@@ -50,8 +50,9 @@ function PickerBody({
     setState({ step, free, paid, ...patch });
   const Title = mobile ? SheetTitle : DialogTitle;
   const title = (text: string, id: string) => (
-    <Title id={id} className={TITLE_CLASS}>
-      {text}
+    // The id rides an inner span: Radix names the frame by the title's own id.
+    <Title className={TITLE_CLASS}>
+      <span id={id}>{text}</span>
     </Title>
   );
 

@@ -77,15 +77,16 @@ export function useDismissBillingChoice() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: tauriOrg.dismissBillingChoiceNotice,
-    onMutate: () => {
-      const before = client.getQueryData<Cached>(queryKeys.billingChoice());
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: queryKeys.billingChoice() });
       client.setQueryData(queryKeys.billingChoice(), (choice: Cached) =>
         choice ? { ...choice, noticeDismissed: true } : choice,
       );
-      return { before };
     },
-    onError: (_error, _vars, context) =>
-      client.setQueryData(queryKeys.billingChoice(), context?.before),
+    onError: () =>
+      client.setQueryData(queryKeys.billingChoice(), (choice: Cached) =>
+        choice ? { ...choice, noticeDismissed: false } : choice,
+      ),
   });
 }
 
@@ -96,14 +97,24 @@ export function useDismissBillingChoice() {
 export function useChoiceNow(choice: Cached): number {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    const wait = nextChoiceDeadline(choice, now);
-    if (wait === null) return;
-    // setTimeout caps at 2^31-1 ms; a later deadline re-arms on wake.
-    const id = setTimeout(
-      () => setNow(Date.now()),
-      Math.min(wait, 2 ** 31 - 1),
-    );
+    let id: ReturnType<typeof setTimeout> | undefined;
+    // Counted from the live clock each time, never from a stale `now`, and
+    // re-armed after each deadline (setTimeout caps at 2^31-1 ms).
+    const arm = () => {
+      const wait = nextChoiceDeadline(choice, Date.now());
+      if (wait === null) return;
+      id = setTimeout(
+        () => {
+          setNow(Date.now());
+          arm();
+        },
+        Math.min(wait, 2 ** 31 - 1),
+      );
+    };
+    // New data can carry a deadline that has already passed.
+    setNow(Date.now());
+    arm();
     return () => clearTimeout(id);
-  }, [choice, now]);
+  }, [choice]);
   return now;
 }
