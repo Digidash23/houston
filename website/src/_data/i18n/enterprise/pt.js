@@ -29,12 +29,30 @@ export default {
       "A nossa faz o trabalho diário de empresas de todos os setores.",
     ],
     industries: [
-      { name: "Logística" },
-      { name: "Imobiliário" },
-      { name: "Varejo" },
-      { name: "Bancos" },
-      { name: "Seguros" },
-      { name: "Indústria" },
+      {
+        name: "Logística",
+        alt: "Um contêiner azul contra o céu",
+      },
+      {
+        name: "Imobiliário",
+        alt: "Varandas brancas de um prédio residencial contra o céu",
+      },
+      {
+        name: "Varejo",
+        alt: "Camisas em cabides em uma loja",
+      },
+      {
+        name: "Bancos",
+        alt: "Uma torre de escritórios sozinha contra um céu rosa e azul",
+      },
+      {
+        name: "Seguros",
+        alt: "Um guarda-chuva laranja contra um céu azul",
+      },
+      {
+        name: "Indústria",
+        alt: "Três chaminés de fábrica contra um céu azul",
+      },
     ],
   },
 
@@ -52,10 +70,22 @@ export default {
       "Quase nenhuma tem o time para fazê-las funcionar.",
     ],
     cards: [
-      { title: "Ninguém é dono" },
-      { title: "Ninguém para construir" },
-      { title: "Nada está conectado" },
-      { title: "Ninguém dá continuidade" },
+      {
+        title: "Ninguém é dono",
+        alt: "Uma cadeira de escritório vazia diante de uma parede de azulejos laranja",
+      },
+      {
+        title: "Ninguém para construir",
+        alt: "Tubos de andaime soltos contra o céu",
+      },
+      {
+        title: "Nada está conectado",
+        alt: "Dois trechos de uma ponte que não se encontram",
+      },
+      {
+        title: "Ninguém dá continuidade",
+        alt: "Uma escada que termina no ar ao entardecer",
+      },
     ],
   },
 

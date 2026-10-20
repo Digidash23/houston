@@ -52,6 +52,35 @@
     });
   })();
 
+  // Industries: pointing at a photo keeps it in color and turns the other
+  // five black and white. Decoration only, so pointer devices only.
+  (function () {
+    var grid = document.getElementById("ent-tiles");
+    if (!grid || !window.matchMedia("(hover: hover)").matches) return;
+    var tiles = Array.prototype.slice.call(grid.children);
+    var leave;
+    function paint(index) {
+      grid.classList.toggle("is-dim", index >= 0);
+      tiles.forEach(function (tile, i) {
+        tile.classList.toggle("is-on", i === index);
+      });
+    }
+    tiles.forEach(function (tile, i) {
+      tile.addEventListener("mouseenter", function () {
+        clearTimeout(leave);
+        paint(i);
+      });
+      // A short grace period, so crossing the gap between two tiles does
+      // not flash all six back to color.
+      tile.addEventListener("mouseleave", function () {
+        clearTimeout(leave);
+        leave = setTimeout(function () {
+          paint(-1);
+        }, 120);
+      });
+    });
+  })();
+
   // Who trusts us: each number counts up once, when it comes into view. The
   // markup holds the final value, so reduced motion simply never starts.
   (function () {

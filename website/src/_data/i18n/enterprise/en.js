@@ -31,12 +31,30 @@ export default {
       "Ours runs the daily work of companies in every industry.",
     ],
     industries: [
-      { name: "Logistics" },
-      { name: "Real Estate" },
-      { name: "Retail" },
-      { name: "Banking" },
-      { name: "Insurance" },
-      { name: "Manufacturing" },
+      {
+        name: "Logistics",
+        alt: "A blue shipping container against the sky",
+      },
+      {
+        name: "Real Estate",
+        alt: "White balconies of an apartment building against the sky",
+      },
+      {
+        name: "Retail",
+        alt: "Shirts on hangers in a shop",
+      },
+      {
+        name: "Banking",
+        alt: "A single office tower against a pink and blue sky",
+      },
+      {
+        name: "Insurance",
+        alt: "An orange umbrella against a blue sky",
+      },
+      {
+        name: "Manufacturing",
+        alt: "Three factory chimneys against a blue sky",
+      },
     ],
   },
 
@@ -54,10 +72,22 @@ export default {
       "Almost none have the team to make them work.",
     ],
     cards: [
-      { title: "No one owns it" },
-      { title: "No one to build it" },
-      { title: "Nothing is connected" },
-      { title: "Nobody follows through" },
+      {
+        title: "No one owns it",
+        alt: "An empty office chair against an orange tiled wall",
+      },
+      {
+        title: "No one to build it",
+        alt: "Bare scaffolding poles against the sky",
+      },
+      {
+        title: "Nothing is connected",
+        alt: "Two sections of a bridge that do not meet",
+      },
+      {
+        title: "Nobody follows through",
+        alt: "A stairway that ends in the air at dusk",
+      },
     ],
   },
 

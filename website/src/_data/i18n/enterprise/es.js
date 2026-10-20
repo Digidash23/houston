@@ -29,12 +29,30 @@ export default {
       "La nuestra hace el trabajo diario de empresas de todas las industrias.",
     ],
     industries: [
-      { name: "Logística" },
-      { name: "Bienes raíces" },
-      { name: "Retail" },
-      { name: "Banca" },
-      { name: "Seguros" },
-      { name: "Manufactura" },
+      {
+        name: "Logística",
+        alt: "Un contenedor azul contra el cielo",
+      },
+      {
+        name: "Bienes raíces",
+        alt: "Balcones blancos de un edificio de apartamentos contra el cielo",
+      },
+      {
+        name: "Retail",
+        alt: "Camisas colgadas en una tienda",
+      },
+      {
+        name: "Banca",
+        alt: "Una torre de oficinas sola contra un cielo rosa y azul",
+      },
+      {
+        name: "Seguros",
+        alt: "Una sombrilla naranja contra un cielo azul",
+      },
+      {
+        name: "Manufactura",
+        alt: "Tres chimeneas de fábrica contra un cielo azul",
+      },
     ],
   },
 
@@ -52,10 +70,22 @@ export default {
       "Casi ninguna tiene el equipo para hacerlas funcionar.",
     ],
     cards: [
-      { title: "Nadie es dueño" },
-      { title: "Nadie la construye" },
-      { title: "Nada está conectado" },
-      { title: "Nadie le da seguimiento" },
+      {
+        title: "Nadie es dueño",
+        alt: "Una silla de oficina vacía frente a una pared de baldosas naranja",
+      },
+      {
+        title: "Nadie la construye",
+        alt: "Tubos de andamio sueltos contra el cielo",
+      },
+      {
+        title: "Nada está conectado",
+        alt: "Dos tramos de un puente que no se unen",
+      },
+      {
+        title: "Nadie le da seguimiento",
+        alt: "Una escalera que termina en el aire al atardecer",
+      },
     ],
   },
 

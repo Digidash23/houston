@@ -1,9 +1,9 @@
 {%- set e = t.enterprise -%}
 {# The landing's #multiplayer structure: one big title, then a split with two
    big phrases on the left (the second one strong) and the six industries on
-   the right, as examples. Names only on the tiles; nobody reads small print
-   here. Each tile is an abstract field in its industry's colors
-   (.ent-aura, enterprise-aura.css), decoration only. #}
+   the right. Names only on the photos; nobody reads small print here.
+   Pointing at a photo keeps it in color and turns the other five black and
+   white (scripts.njk); touch and JS-off leave all six in color. #}
 <section class="section ent-section" id="industries" data-tone="light" aria-labelledby="ent-ind-label">
   <div class="mp-head reveal">
     <h2 class="sec-title" id="ent-ind-label">{{ e.hero.industriesLabel }}</h2>
@@ -15,10 +15,10 @@
     </div>
     <div class="ent-tiles" id="ent-tiles">
 {%- for ind in enterprise.industries %}{% set copy = e.hero.industries[loop.index0] %}
-      <div class="ent-tile">
-        <i class="ent-aura" data-aura="{{ ind.id }}" aria-hidden="true"></i>
-        <h3 class="ent-tile-cap">{{ copy.name }}</h3>
-      </div>
+      <figure class="ent-tile" data-ind="{{ loop.index0 }}">
+        <img src="/assets/img/enterprise/industries/{{ ind.id }}.webp" alt="{{ copy.alt }}" width="1080" height="810" loading="lazy" decoding="async">
+        <figcaption class="ent-tile-cap"><h3>{{ copy.name }}</h3></figcaption>
+      </figure>
 {%- endfor %}
     </div>
   </div>

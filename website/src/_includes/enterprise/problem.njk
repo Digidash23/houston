@@ -1,17 +1,18 @@
 {%- set e = t.enterprise -%}
 {# The problem, on the black band, in the landing's #parallel structure: the
-   visual left (four reasons, each an abstract tile and a few big words), the
-   title and two lines right. The tiles are the industries' fields drained
-   to black and white, one dim light each (enterprise-aura.css). Order
-   matches e.problem.cards. #}
+   visual left (four reasons, each a photograph and a few big words), the
+   title and two lines right. The photographs continue the industries'
+   series, one plain object each (README in assets/img/enterprise): an
+   empty chair, bare scaffolding, a bridge that does not meet, stairs that
+   end in the air. Order matches e.problem.cards. #}
 <section id="problem" class="section is-dark ent-section" data-tone="dark">
   <div class="split reveal">
     <div class="split-visual ent-cards">
 {%- for card in e.problem.cards %}
-      <div class="ent-tile ent-tile-square">
-        <i class="ent-aura" data-aura="{{ enterprise.problems[loop.index0] }}" aria-hidden="true"></i>
-        <h3 class="ent-tile-cap">{{ card.title }}</h3>
-      </div>
+      <figure class="ent-tile ent-tile-square">
+        <img src="/assets/img/enterprise/problem/{{ enterprise.problems[loop.index0] }}.webp" alt="{{ card.alt }}" width="960" height="960" loading="lazy" decoding="async">
+        <figcaption class="ent-tile-cap"><h3>{{ card.title }}</h3></figcaption>
+      </figure>
 {%- endfor %}
     </div>
     <div class="split-copy">
