@@ -132,26 +132,19 @@
   },
   "choice": {
     "notice": {
-      "lead": "Starting {{date}}, plans move to organizations.",
-      "rest": "Each account keeps one free organization. Other organizations are {{price}} per member per month.",
-      "restPayer": "Each account keeps one free organization. Other organizations are {{price}} per member per month. Your subscription moves to the organization you choose.",
-      "restMember": "Each account keeps one free organization. Other organizations are {{price}} per member per month. Your organization's owner will choose.",
-      "singleOrg": "{{name}} stays free. Other organizations are {{price}} per member per month.",
-      "singleOrgPayer": "Your subscription will pay for {{name}}, at {{price}} per member per month.",
-      "choose": "Choose your free organization",
-      "dismiss": "Dismiss",
-      "label": "Pricing change"
-    },
-    "picked": {
-      "lead": "{{name}} stays free.",
-      "others": "Your other organizations need a plan from {{day}}.",
-      "paid": "Your subscription pays for {{name}} from {{day}}.",
-      "paidOthers": "Your subscription pays for {{name}}, and your other organizations need a plan from {{day}}.",
-      "change": "Change"
+      "title": "Plans are moving to organizations",
+      "pick": "From {{date}}, one of your organizations stays free. The others are {{price}} per member a month.",
+      "pickPayer": "From {{date}}, one of your organizations stays free. The others are {{price}} per member a month. Your subscription moves to the organization you pick.",
+      "singleOrg": "From {{date}}, {{name}} stays free. Upgrade anytime for {{price}} per member a month.",
+      "singleOrgPayer": "From {{date}}, your subscription pays for {{name}}.",
+      "member": "From {{date}}, plans work per organization. Your organization's owner chooses the plan.",
+      "choose": "Choose my free organization",
+      "gotIt": "Got it",
+      "close": "Close"
     },
     "picker": {
       "title": "Which organization stays free?",
-      "body": "The free one shares {{limit}} messages a week across everyone in it. In the others, you can still open everything and move AI Employees out, but nobody can send messages until it's upgraded.",
+      "body": "The free one has a weekly message limit shared by everyone in it. In the others, nobody can send messages until it's upgraded, but you can still open everything.",
       "mostActive": "Most active",
       "personal": "Personal",
       "members_one": "{{count}} member",

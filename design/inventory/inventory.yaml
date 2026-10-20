@@ -2466,23 +2466,27 @@ components:
     a11y: Every variant is one button named "Upgrade to Plus" plus the usage state, and the icon rail shows that name as a tooltip. Warning and limit states use text and an icon as well as color.
     since: 121
 
-  - id: billing-change-banner
-    title: Pricing change announcement
-    purpose: Tell a cloud user, before plans move to organizations, which org stays free and let an owner choose it.
-    anatomy: [calendar-mark, date-sentence, detail-sentence, choose-action, change-action, success-check, dismiss-button]
-    states: [hidden, pick, pick-payer, picked, single-org, member]
-    variants: [phone, desktop]
+  - id: billing-change-modal
+    title: Pricing change modal
+    purpose: Tell a cloud user, when the app opens, that plans move to organizations, and let an owner choose which org stays free.
+    anatomy: [title, date-and-price-sentence, primary-pill, maybe-later-action, close-button, picker-step]
+    states: [hidden, pick, pick-payer, single-org, member, waiting-behind-plan-dialog]
+    variants: [phone-full-height-sheet, desktop-dialog]
     behavior: >-
-      SDK choiceNotice picks the variant from the account's billing choice:
-      pick for an owner of several orgs who has not chosen (a Plus or comp
-      payer also reads that the subscription moves), picked once a pick is
-      stored, single-org for the owner of one, member inside an org someone
-      else owns, hidden once dismissed, applied, or past the cutover. The date
-      is the server's cutoverAt in the reader's language. Cloud only. It sits
-      at the top of the main screen card, never over the sidebar; desktop is
-      one line, phone wraps the action onto its own row. Dismiss hides it on
-      every device.
-    a11y: The bar is a status region; Dismiss is a labelled icon button; every action is a visible button, never hover-only.
+      SDK choiceModal decides from the account's billing choice. An owner of
+      several orgs who has not picked sees it on every app open until they
+      pick; Maybe later and the X hide it for that session only, and the
+      primary action opens the free-org picker in the same frame (a Plus or
+      comp payer also reads that the subscription moves). A single-org owner
+      reads that the org stays free, and a member of someone else's org reads
+      that its owner chooses; each sees it once, and Got it or the X stores
+      the dismissal so no device shows it again. A stored pick, the cutover or
+      an applied change shows nothing. It never stacks on a plan dialog and
+      waits until that one is gone. The date is the server's cutoverAt in the
+      reader's language. Cloud only. It wears the launch announcement's dark
+      briefing frame: centered on desktop, full height on phones with the
+      actions at the bottom.
+    a11y: A titled, described dialog; the X is labelled; every action is a visible button, never hover-only; only the person closes it.
     since: 137
 
   - id: free-org-picker
@@ -2490,7 +2494,7 @@ components:
     purpose: Let an owner choose which org stays free and, for a payer, which org the subscription pays for.
     anatomy: [step-label, title, body, org-radio-cards, most-active-tag, member-and-activity-meta, monthly-total, free-org-row, grace-note, back-action, primary-action, change-until-hint, close-button]
     states: [free-step, paid-step, saving, refused]
-    variants: [desktop-dialog, phone-bottom-sheet]
+    variants: [desktop-dialog, phone-full-height-sheet]
     behavior: >-
       SDK pickerRows lists owned orgs busiest first (30-day messages, then
       latest activity, then the personal org) and tags the busiest. The stored
@@ -2498,7 +2502,8 @@ components:
       second step in the same frame with each org's monthly total from
       payerTotals and the free pick shown as a disabled row. Save calls
       setChoice; not_owner, not_payer and same_org come back as outcomes with
-      their own copy. The Settings plan screen keeps a row that reopens it
-      while the pick is open.
+      their own copy. It opens as the pricing-change modal's second step, and
+      the Settings plan screen keeps a row that opens it on its own, in the
+      same briefing frame, while the pick is open.
     a11y: Each step is a radio group of full-row labelled radios with a visible focus ring; the frame is a titled dialog with a labelled close button.
     since: 137

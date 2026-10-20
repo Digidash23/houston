@@ -1,3 +1,4 @@
+import { layout } from "@houston/design-tokens";
 import type { BillingChoice, BillingChoicePick } from "@houston/engine-adapter";
 import {
   choosesPaidOrg,
@@ -6,35 +7,28 @@ import {
   type PickerState,
   reconcilePick,
 } from "@houston/sdk";
-import {
-  Dialog,
-  DialogCloseButton,
-  DialogContent,
-  DialogTitle,
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  useIsMobile,
-} from "@houston-ai/core";
+import { DialogTitle } from "@houston-ai/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSetBillingChoice } from "../../hooks/queries/use-billing-choice";
 import { FreeStep, PaidStep } from "./free-org-picker-steps";
+import { PlanBriefingFrame } from "./plan-briefing-frame";
 
-const TITLE_CLASS = "text-xl font-medium leading-snug text-balance text-ink";
+const TITLE_CLASS =
+  "text-2xl font-medium leading-tight tracking-tight text-balance text-ink";
 
 /**
  * The steps, mounted fresh on every open so each one starts on the stored
  * pick (else the busiest org). A Plus or comp payer gets a second step in the
- * same frame for the org their subscription pays for.
+ * same frame for the org their subscription pays for. Renders inside a
+ * {@link PlanBriefingFrame}: the Settings entry's own, or the pricing-change
+ * modal's after its intro.
  */
-function PickerBody({
+export function PickerBody({
   choice,
-  mobile,
   onDone,
 }: {
   choice: BillingChoice;
-  mobile: boolean;
   onDone: () => void;
 }) {
   const save = useSetBillingChoice();
@@ -48,12 +42,11 @@ function PickerBody({
   const { step, free, paid } = reconcilePick(choice, state);
   const update = (patch: Partial<PickerState>) =>
     setState({ step, free, paid, ...patch });
-  const Title = mobile ? SheetTitle : DialogTitle;
   const title = (text: string, id: string) => (
     // The id rides an inner span: Radix names the frame by the title's own id.
-    <Title className={TITLE_CLASS}>
+    <DialogTitle className={TITLE_CLASS}>
       <span id={id}>{text}</span>
-    </Title>
+    </DialogTitle>
   );
 
   const submit = (pick: BillingChoicePick) =>
@@ -66,40 +59,44 @@ function PickerBody({
 
   if (step === "paid")
     return (
-      <PaidStep
-        choice={choice}
-        freeSlug={free ?? ""}
-        selected={paid ?? ""}
-        onSelect={(slug) => update({ paid: slug })}
-        busy={save.isPending}
-        title={title}
-        onBack={() => update({ step: "free" })}
-        onConfirm={() =>
-          free && paid && submit({ freeOrgSlug: free, paidOrgSlug: paid })
-        }
-      />
+      <div className="flex flex-col gap-5">
+        <PaidStep
+          choice={choice}
+          freeSlug={free ?? ""}
+          selected={paid ?? ""}
+          onSelect={(slug) => update({ paid: slug })}
+          busy={save.isPending}
+          title={title}
+          onBack={() => update({ step: "free" })}
+          onConfirm={() =>
+            free && paid && submit({ freeOrgSlug: free, paidOrgSlug: paid })
+          }
+        />
+      </div>
     );
   return (
-    <FreeStep
-      choice={choice}
-      selected={free ?? ""}
-      onSelect={(slug) => update({ free: slug })}
-      step={payer ? 1 : undefined}
-      busy={save.isPending}
-      title={title}
-      onConfirm={() => {
-        if (!free) return;
-        if (!payer) return submit({ freeOrgSlug: free });
-        update({
-          step: "paid",
-          paid: paid && paid !== free ? paid : defaultPaidOrg(choice, free),
-        });
-      }}
-    />
+    <div className="flex flex-col gap-5">
+      <FreeStep
+        choice={choice}
+        selected={free ?? ""}
+        onSelect={(slug) => update({ free: slug })}
+        step={payer ? 1 : undefined}
+        busy={save.isPending}
+        title={title}
+        onConfirm={() => {
+          if (!free) return;
+          if (!payer) return submit({ freeOrgSlug: free });
+          update({
+            step: "paid",
+            paid: paid && paid !== free ? paid : defaultPaidOrg(choice, free),
+          });
+        }}
+      />
+    </div>
   );
 }
 
-/** A centered dialog on desktop, a bottom sheet on phones (a structural fork). */
+/** The picker on its own, opened from Settings > Billing. */
 export function FreeOrgPicker({
   choice,
   open,
@@ -113,48 +110,20 @@ export function FreeOrgPicker({
   returnFocus: () => void;
 }) {
   const { t } = useTranslation("plan");
-  const mobile = useIsMobile();
-  const body = (
-    <>
-      <DialogCloseButton
-        label={t("choice.picker.close")}
-        className="absolute top-3.5 right-3.5"
-      />
-      <PickerBody
-        choice={choice}
-        mobile={mobile}
-        onDone={() => onOpenChange(false)}
-      />
-    </>
-  );
-  const closeFocus = (event: Event) => {
-    event.preventDefault();
-    returnFocus();
-  };
-  if (mobile)
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          side="bottom"
-          showCloseButton={false}
-          aria-describedby={undefined}
-          onCloseAutoFocus={closeFocus}
-          className="max-h-[90dvh] gap-4 overflow-y-auto rounded-t-2xl border-line/50 p-5 pb-[calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px))+1.25rem)]"
-        >
-          {body}
-        </SheetContent>
-      </Sheet>
-    );
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        aria-describedby={undefined}
-        onCloseAutoFocus={closeFocus}
-        className="max-h-[calc(100dvh-2rem)] gap-5 overflow-y-auto sm:max-w-[30rem]"
-      >
-        {body}
-      </DialogContent>
-    </Dialog>
+    <PlanBriefingFrame
+      open={open}
+      onDismiss={() => onOpenChange(false)}
+      closeLabel={t("choice.picker.close")}
+      width={layout["choice-dialog-width"]}
+      described={false}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        returnFocus();
+      }}
+      testId="free-org-picker"
+    >
+      <PickerBody choice={choice} onDone={() => onOpenChange(false)} />
+    </PlanBriefingFrame>
   );
 }

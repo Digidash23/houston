@@ -48,24 +48,24 @@ describe("choiceNotice", () => {
   it("reads the stored pick back once it is saved", () => {
     expect(
       choiceNotice(choice({ freeOrgSlug: INNOVA.slug }), at(BEFORE)),
-    ).toEqual({
-      kind: "picked",
-      day: "October 23",
-      freeOrgSlug: INNOVA.slug,
-      paidOrgSlug: null,
-      othersNeedPlan: true,
-    });
+    ).toEqual({ kind: "picked", freeOrgSlug: INNOVA.slug, paidOrgSlug: null });
     const both = choice({
       payer: "plus",
       orgs: [LA_FILA, INNOVA],
       freeOrgSlug: LA_FILA.slug,
       paidOrgSlug: INNOVA.slug,
     });
-    expect(choiceNotice(both, at(BEFORE))).toMatchObject({
+    expect(choiceNotice(both, at(BEFORE))).toEqual({
       kind: "picked",
+      freeOrgSlug: LA_FILA.slug,
       paidOrgSlug: INNOVA.slug,
-      othersNeedPlan: false,
     });
+  });
+
+  it("keeps asking an owner to pick after a dismissal, until they pick", () => {
+    expect(
+      choiceNotice(choice({ noticeDismissed: true }), at(BEFORE)),
+    ).toMatchObject({ kind: "pick" });
   });
 
   it("tells the owner of one org it stays free, from their own space", () => {
@@ -93,9 +93,16 @@ describe("choiceNotice", () => {
   });
 
   it("hides once dismissed, applied, past the cutover, or unserved", () => {
-    expect(choiceNotice(choice({ noticeDismissed: true }), at(BEFORE))).toEqual(
-      { kind: "hidden" },
-    );
+    const single = choice({ needed: false, orgs: [PERSONAL] });
+    expect(
+      choiceNotice({ ...single, noticeDismissed: true }, at(BEFORE)),
+    ).toEqual({ kind: "hidden" });
+    expect(
+      choiceNotice(
+        { ...single, noticeDismissed: true },
+        at(BEFORE, "ffffffffffffffff"),
+      ),
+    ).toEqual({ kind: "hidden" });
     expect(choiceNotice(choice({ state: "applied" }), at(BEFORE))).toEqual({
       kind: "hidden",
     });

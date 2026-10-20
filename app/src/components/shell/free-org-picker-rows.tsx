@@ -115,7 +115,7 @@ export function FreeOrgRow({
 
 export function MostActiveTag({ label }: { label: string }) {
   return (
-    <span className="shrink-0 rounded-full bg-highlight px-2 py-px text-[11px] font-medium text-highlight-text">
+    <span className="shrink-0 rounded-full border border-line px-2 py-px text-[11px] font-medium text-ink-muted">
       {label}
     </span>
   );

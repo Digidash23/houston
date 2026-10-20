@@ -1,6 +1,7 @@
 {
   "layout": {
     "$type": "dimension",
-    "announcement-dialog-width": { "$value": "48rem" }
+    "announcement-dialog-width": { "$value": "48rem" },
+    "choice-dialog-width": { "$value": "32rem" }
   }
 }

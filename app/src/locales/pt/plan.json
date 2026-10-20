@@ -132,26 +132,19 @@
   },
   "choice": {
     "notice": {
-      "lead": "A partir de {{date}}, os planos passam para as organizações.",
-      "rest": "Cada conta mantém uma organização grátis. As outras organizações custam {{price}} por membro por mês.",
-      "restPayer": "Cada conta mantém uma organização grátis. As outras organizações custam {{price}} por membro por mês. Sua assinatura passa para a organização que você escolher.",
-      "restMember": "Cada conta mantém uma organização grátis. As outras organizações custam {{price}} por membro por mês. O proprietário da sua organização vai escolher.",
-      "singleOrg": "{{name}} continua grátis. As outras organizações custam {{price}} por membro por mês.",
-      "singleOrgPayer": "Sua assinatura vai pagar {{name}}, a {{price}} por membro por mês.",
-      "choose": "Escolha sua organização grátis",
-      "dismiss": "Dispensar",
-      "label": "Mudança de preços"
-    },
-    "picked": {
-      "lead": "{{name}} continua grátis.",
-      "others": "Suas outras organizações precisam de um plano a partir de {{day}}.",
-      "paid": "Sua assinatura paga {{name}} a partir de {{day}}.",
-      "paidOthers": "Sua assinatura paga {{name}}, e suas outras organizações precisam de um plano a partir de {{day}}.",
-      "change": "Alterar"
+      "title": "Os planos estão passando para as organizações",
+      "pick": "A partir de {{date}}, uma das suas organizações continua grátis. As outras custam {{price}} por membro por mês.",
+      "pickPayer": "A partir de {{date}}, uma das suas organizações continua grátis. As outras custam {{price}} por membro por mês. Sua assinatura passa para a organização que você escolher.",
+      "singleOrg": "A partir de {{date}}, {{name}} continua grátis. Faça upgrade quando quiser por {{price}} por membro por mês.",
+      "singleOrgPayer": "A partir de {{date}}, sua assinatura paga {{name}}.",
+      "member": "A partir de {{date}}, os planos são por organização. O proprietário da sua organização escolhe o plano.",
+      "choose": "Escolher minha organização grátis",
+      "gotIt": "Entendi",
+      "close": "Fechar"
     },
     "picker": {
       "title": "Qual organização continua grátis?",
-      "body": "A grátis compartilha {{limit}} mensagens por semana entre todas as pessoas dela. Nas outras, você ainda pode abrir tudo e tirar seus funcionários de IA, mas ninguém pode enviar mensagens até ela ter um plano.",
+      "body": "A grátis tem um limite semanal de mensagens compartilhado por todas as pessoas dela. Nas outras, ninguém pode enviar mensagens até ela ter um plano, mas você ainda pode abrir tudo.",
       "mostActive": "Mais ativa",
       "personal": "Pessoal",
       "members_one": "{{count}} membro",

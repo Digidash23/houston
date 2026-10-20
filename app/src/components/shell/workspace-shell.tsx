@@ -18,7 +18,6 @@ import { ImportAgentWizard } from "../portable/import-wizard";
 import { ShortcutCheatsheet } from "../shortcut-cheatsheet";
 import { AddToWorkspaceSheet } from "./add-to-workspace-sheet";
 import { AgentWarmingDialog } from "./agent-warming-dialog";
-import { BillingChangeBanner } from "./billing-change-banner";
 import { BootLandingContent } from "./boot-landing-placeholder";
 import { DetailPanelProvider } from "./detail-panel-context";
 import { KeepAliveViews } from "./keep-alive-views";
@@ -128,7 +127,6 @@ export function WorkspaceShell({
                   panelWide && "md:hidden",
                 )}
               >
-                <BillingChangeBanner />
                 <TeamStatusBanner />
                 <ProviderReconnectNotice />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

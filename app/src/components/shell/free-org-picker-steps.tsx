@@ -1,10 +1,5 @@
 import type { BillingChoice } from "@houston/engine-adapter";
-import {
-  FREE_ORG_WEEKLY_MESSAGES,
-  formatCutoverDay,
-  payerTotals,
-  pickerRows,
-} from "@houston/sdk";
+import { formatCutoverDay, payerTotals, pickerRows } from "@houston/sdk";
 import { Button } from "@houston-ai/core";
 import { ChevronLeft, Info } from "lucide-react";
 import { type ReactNode, useId } from "react";
@@ -45,7 +40,7 @@ export function FreeStep(props: StepProps & { onConfirm: () => void }) {
         <StepLabel step={props.step} />
         {props.title(t("choice.picker.title"), titleId)}
         <p className="mt-2 text-sm leading-relaxed text-hover-text">
-          {t("choice.picker.body", { limit: FREE_ORG_WEEKLY_MESSAGES })}
+          {t("choice.picker.body")}
         </p>
       </div>
       <div

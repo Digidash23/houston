@@ -3,28 +3,21 @@ import { formatPlanAmount } from "../plan/format";
 
 /** One seat on any paid organization, before C3 sends the price per org. */
 export const ORG_SEAT_PRICE_CENTS = 1500;
-/** The weekly message pool a free org shares across its members. */
-export const FREE_ORG_WEEKLY_MESSAGES = 40;
 const CURRENCY = "usd";
 
 /**
- * What the announcement shows. `pick`: an owner of several orgs who has not
- * picked (`payer` adds that their subscription moves to the org they pick).
- * `picked`: the pick is stored. `single_org`: the one org they own stays free
- * (or, for a subscriber, is what the subscription pays for). `member`: the
- * person is in an org someone else owns, so its owner decides. `hidden`:
- * dismissed, applied, or past the cutover.
+ * Where the person stands on the change. `pick`: an owner of several orgs who
+ * has not picked (`payer`: their subscription also moves to an org they pick);
+ * it stays until they pick, whatever `noticeDismissed` says. `picked`: the
+ * pick is stored. `single_org`: the one org they own stays free (or, for a
+ * subscriber, is what the subscription pays for). `member`: the person is in
+ * an org someone else owns, so its owner decides. `hidden`: applied, past the
+ * cutover, or a read-only notice that was dismissed.
  */
 export type ChoiceNotice =
   | { kind: "hidden" }
   | { kind: "pick"; date: string; payer: boolean }
-  | {
-      kind: "picked";
-      day: string;
-      freeOrgSlug: string;
-      paidOrgSlug: string | null;
-      othersNeedPlan: boolean;
-    }
+  | { kind: "picked"; freeOrgSlug: string; paidOrgSlug: string | null }
   | { kind: "single_org"; date: string; orgSlug: string; payer: boolean }
   | { kind: "member"; date: string };
 
@@ -85,7 +78,6 @@ export function choiceNotice(
 ): ChoiceNotice {
   if (
     !choice ||
-    choice.noticeDismissed ||
     choice.state === "applied" ||
     context.now >= Date.parse(choice.cutoverAt)
   )
@@ -93,19 +85,15 @@ export function choiceNotice(
   const date = formatCutoverDate(choice.cutoverAt, context.locale);
   const owned = (slug: string | null) =>
     slug === null || choice.orgs.some((org) => org.slug === slug);
-  if (choice.needed && choice.freeOrgSlug && owned(choice.freeOrgSlug)) {
-    const paid = choice.paidOrgSlug;
-    const named = paid ? 2 : 1;
+  if (choice.needed && choice.freeOrgSlug && owned(choice.freeOrgSlug))
     return {
       kind: "picked",
-      day: formatCutoverDay(choice.cutoverAt, context.locale),
       freeOrgSlug: choice.freeOrgSlug,
-      paidOrgSlug: paid,
-      othersNeedPlan: choice.orgs.length > named,
+      paidOrgSlug: choice.paidOrgSlug,
     };
-  }
   if (choice.needed)
     return { kind: "pick", date, payer: choosesPaidOrg(choice) };
+  if (choice.noticeDismissed) return { kind: "hidden" };
   const [only] = choice.orgs;
   if (!only || !owned(context.activeOrgSlug)) return { kind: "member", date };
   return {
@@ -175,7 +163,7 @@ export function payerTotals(
   };
 }
 
-/** The other orgs' price, for the announcement's second sentence. */
+/** One seat on a paid org, for the announcement's price. */
 export function orgSeatPrice(locale?: string): string {
   return formatPlanAmount(ORG_SEAT_PRICE_CENTS, CURRENCY, locale);
 }
