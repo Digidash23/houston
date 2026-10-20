@@ -91,7 +91,7 @@ export async function setChoice(
  * Hides the announcement about plans moving to organizations, on every device.
  * @assistant group:billing hidden: only the person reading the announcement may dismiss it.
  * @assistant unconfirmed: This only records that the announcement was seen.
- * @assistant hands: unreachable the person dismisses the announcement from the bar they are reading, which no card stands in for.
+ * @assistant hands: unreachable the person dismisses the announcement from the modal they are reading, which no card stands in for.
  */
 export async function dismissChoiceNotice(scope: HttpScope): Promise<void> {
   await httpRequest(scope, "/v1/me/billing-choice/dismiss", { method: "POST" });

@@ -216,7 +216,7 @@ Each one is withheld from the assistant and still the person's to finish. The ca
 - `revokeApiKey` - `request_hands_on(apiKeys)`
 - `createPlusPortal` - `request_hands_on(billing)`
 - `createPortal` - `request_hands_on(billing)`
-- `dismissChoiceNotice` - no card: the person dismisses the announcement from the bar they are reading, which no card stands in for.
+- `dismissChoiceNotice` - no card: the person dismisses the announcement from the modal they are reading, which no card stands in for.
 - `downloadProjectArchive` - `request_hands_on(files)`
 - `downloadProjectFile` - `request_hands_on(files)`
 - `migrationComplete` - no card: the copy and migration wizards drive it themselves; no screen offers it as an errand.
