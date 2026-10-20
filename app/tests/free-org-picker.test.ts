@@ -6,6 +6,7 @@ import { JSDOM } from "jsdom";
 import type { ReactElement } from "react";
 import plan from "../src/locales/en/plan.json" with { type: "json" };
 import planEs from "../src/locales/es/plan.json" with { type: "json" };
+import planPt from "../src/locales/pt/plan.json" with { type: "json" };
 
 let h: typeof import("react").createElement;
 let render: (element: ReactElement) => string;
@@ -141,45 +142,65 @@ function noticeText(choice: BillingChoice, activeOrgSlug: string | null) {
     activeOrgSlug,
     locale: i18next.language,
   });
-  if (notice.kind === "hidden") return "hidden";
+  if (
+    notice.kind !== "pick" &&
+    notice.kind !== "single_org" &&
+    notice.kind !== "member"
+  )
+    return notice.kind;
   let out = "";
   const Probe = () => {
-    const text = copy.useNoticeText(notice, choice);
-    out = `${text.lead} | ${text.rest}`;
+    out = copy.useNoticeBody(notice, choice);
     return null;
   };
   render(h(Probe));
   return out;
 }
 
+const SINGLE = {
+  ...CHOICE,
+  needed: false,
+  payer: null,
+  orgs: [{ ...CHOICE.orgs[2] }],
+};
+
 describe("the announcement copy", () => {
-  it("asks a payer to choose and says the subscription moves", () => {
+  it("asks an owner to choose, with the date and the price", () => {
     strictEqual(
-      noticeText(CHOICE, null),
-      "Starting Friday, October 23, plans move to organizations. | Each account keeps one free organization. Other organizations are $15 per member per month. Your subscription moves to the organization you choose.",
+      noticeText({ ...CHOICE, payer: null }, null),
+      "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month.",
     );
   });
 
-  it("reads the stored pick back as one quiet line", () => {
+  it("tells a payer the subscription moves to the org they pick", () => {
     strictEqual(
-      noticeText(
-        { ...CHOICE, payer: null, freeOrgSlug: "1111111111111111" },
-        null,
-      ),
-      "La Fila stays free. | Your other organizations need a plan from October 23.",
+      noticeText(CHOICE, null),
+      "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month. Your subscription moves to the organization you pick.",
+    );
+  });
+
+  it("names the one org that stays free, or that the subscription pays for", () => {
+    strictEqual(
+      noticeText(SINGLE, null),
+      "From Friday, October 23, La Fila stays free. Upgrade anytime for $15 per member a month.",
+    );
+    strictEqual(
+      noticeText({ ...SINGLE, payer: "plus" }, null),
+      "From Friday, October 23, your subscription pays for La Fila.",
     );
   });
 
   it("tells a member in someone else's org that the owner chooses", () => {
-    const member = {
-      ...CHOICE,
-      needed: false,
-      payer: null,
-      orgs: [CHOICE.orgs[0]],
-    };
     strictEqual(
-      noticeText(member, "ffffffffffffffff"),
-      "Starting Friday, October 23, plans move to organizations. | Each account keeps one free organization. Other organizations are $15 per member per month. Your organization's owner will choose.",
+      noticeText(SINGLE, "ffffffffffffffff"),
+      "From Friday, October 23, plans work per organization. Your organization's owner chooses the plan.",
+    );
+  });
+
+  it("says nothing once the pick is stored", () => {
+    strictEqual(
+      noticeText({ ...CHOICE, freeOrgSlug: "1111111111111111" }, null),
+      "picked",
     );
   });
 
@@ -187,11 +208,18 @@ describe("the announcement copy", () => {
     await i18next.changeLanguage("es");
     try {
       strictEqual(
-        noticeText({ ...CHOICE, payer: null }, null).split(" | ")[0],
-        "A partir del viernes, 23 de octubre, los planes pasan a las organizaciones.",
+        noticeText({ ...CHOICE, payer: null }, null),
+        "Desde el viernes, 23 de octubre, una de tus organizaciones sigue gratis. Las demás cuestan 15\u00a0US$ por miembro al mes.",
       );
     } finally {
       await i18next.changeLanguage("en");
+    }
+  });
+
+  it("never states the free org's weekly message count, in any language", () => {
+    for (const locale of [plan, planEs, planPt]) {
+      const text = JSON.stringify(locale.choice);
+      ok(!/\{\{limit\}\}|\b40\b/.test(text), text);
     }
   });
 });

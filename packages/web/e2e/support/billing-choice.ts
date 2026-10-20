@@ -4,8 +4,9 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * The free-org pick, armed on the fake host (`/__test__/billing-choice`), and
- * the announcement bar and picker it drives. The page clock is pinned three
- * days before the cutover so every date on screen comes from the fixture.
+ * the pricing-change modal and picker it drives. The page clock is pinned
+ * three days before the cutover so every date on screen comes from the
+ * fixture.
  */
 
 export const CHOICE_NOW = "2026-10-20T17:00:00.000Z";
@@ -106,8 +107,36 @@ export async function installChoiceClock(page: Page): Promise<void> {
   await page.clock.install({ time: new Date(CHOICE_NOW) });
 }
 
-export const banner = (page: Page): Locator =>
-  page.getByTestId("billing-change-banner");
+/** The modal shown on app open: its intro, then the picker in the same frame. */
+export const choiceModal = (page: Page): Locator =>
+  page.getByTestId("billing-change-modal");
 
-export const picker = (page: Page): Locator =>
-  page.getByRole("dialog").filter({ hasText: "stays free" });
+/** The picker opened from Settings > Billing. */
+export const settingsPicker = (page: Page): Locator =>
+  page.getByTestId("free-org-picker");
+
+export const MODAL_TITLE = "Plans are moving to organizations";
+export const CHOOSE = "Choose my free organization";
+
+/** A single-org owner: the one org they own stays free. */
+export function singleOrgChoice(
+  patch: Partial<BillingChoice> = {},
+): BillingChoice {
+  return ownerChoice({ needed: false, orgs: [LA_FILA], ...patch });
+}
+
+/** A member of an org someone else owns: nothing of theirs to pick. */
+export function memberChoice(): BillingChoice {
+  return ownerChoice({ needed: false, orgs: [] });
+}
+
+/** Seed the app's language before boot (the fixture seeds English). */
+export async function seedLocale(
+  page: Page,
+  locale: "es" | "pt",
+): Promise<void> {
+  await page.addInitScript((lng: string) => {
+    localStorage.setItem("houston.pref.locale", lng);
+    localStorage.setItem("i18nextLng", lng);
+  }, locale);
+}
