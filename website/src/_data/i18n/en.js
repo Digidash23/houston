@@ -63,6 +63,9 @@ export default {
     sub: "Houston gives your team one place to run AI agents, on any model, connected to the tools you already use, so every agent and everything it learns belongs to the company instead of one person's account.",
     ctaDownload: "Download the app",
     ctaSeeHow: "See how it works",
+    // The quiet route for a company buyer who arrives ready: under the
+    // buttons, to /enterprise.
+    ctaCompanies: "Bringing it to your whole company? Talk to our team",
     windowAlt:
       "Houston, the desktop app: a team's shared mission board where agents move tasks across Running, Needs you, and Done, with the teammates on each mission shown as face stacks",
     app: {
@@ -391,8 +394,23 @@ export default {
       amount: "Custom",
       note: "for larger teams",
       items: ["SSO", "Security review", "Onboarding for the whole team"],
-      cta: "Talk to us",
+      cta: "Learn more",
     },
+  },
+
+  // The band after pricing that hands a team that already uses Houston to
+  // /enterprise: the company step of the ladder (Free, Team, Enterprise).
+  companies: {
+    title: "Your team already uses it? Roll it out across the company.",
+    lead: "Our engineers do it with you, from the first call to every team, in about a month.",
+    steps: [
+      "Discovery call",
+      "4-week paid pilot",
+      "Your systems connected",
+      "Measure, then expand",
+    ],
+    cta: "Book a discovery call",
+    more: "See how it works",
   },
 
   faq: {

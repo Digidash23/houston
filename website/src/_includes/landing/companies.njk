@@ -1,0 +1,20 @@
+{%- set c = t.companies -%}
+{# The company step of the pricing ladder (Free, Team, Enterprise), right
+   after the cards: for the reader whose team already uses Houston and wants
+   it everywhere. One black band, centered like /enterprise's closing scene:
+   the claim, one line, the four steps of the rollout in a quiet row, and two
+   ways on: book the call now, or read the whole offer on /enterprise. #}
+{%- set chevron %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>{% endset -%}
+<section id="companies" class="section is-dark companies" aria-labelledby="companies-title">
+  <h2 class="sec-title companies-title reveal" id="companies-title">{{ c.title }}</h2>
+  <p class="companies-lead reveal reveal-d1">{{ c.lead }}</p>
+  <ol class="companies-steps reveal reveal-d1">
+{%- for step in c.steps %}
+    <li>{{ step }}</li>
+{%- endfor %}
+  </ol>
+  <div class="companies-cta reveal reveal-d2">
+    <a class="btn btn-white" href="{{ enterprise.contact.booking }}" target="_blank" rel="noopener">{{ c.cta }}{{ chevron | safe }}</a>
+    <a class="btn btn-ghost" href="{{ localeRoot }}{{ enterprise.path }}">{{ c.more }}</a>
+  </div>
+</section>

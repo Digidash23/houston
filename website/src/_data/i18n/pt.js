@@ -64,6 +64,9 @@ export default {
     sub: "O Houston dá ao seu time um único lugar para usar agentes de IA, com qualquer modelo e conectados às ferramentas que vocês já usam, para que cada agente e tudo o que ele aprende pertença à empresa e não à conta de uma pessoa.",
     ctaDownload: "Baixar o app",
     ctaSeeHow: "Ver como funciona",
+    // The quiet route for a company buyer who arrives ready: under the
+    // buttons, to /enterprise.
+    ctaCompanies: "Quer para a empresa toda? Fale com nosso time",
     windowAlt:
       "O Houston, o app de computador: o quadro de missões compartilhado de um time, onde os agentes movem tarefas entre Em execução, Precisa de você e Pronto, com os rostos de quem está em cada missão agrupados ao lado",
     app: {
@@ -404,8 +407,23 @@ export default {
       amount: "Sob medida",
       note: "para times maiores",
       items: ["SSO", "Revisão de segurança", "Implantação para o time inteiro"],
-      cta: "Fale com a gente",
+      cta: "Saiba mais",
     },
+  },
+
+  // The band after pricing that hands a team that already uses Houston to
+  // /enterprise: the company step of the ladder (Free, Team, Enterprise).
+  companies: {
+    title: "Seu time já usa? Leve para a empresa toda.",
+    lead: "Nossos engenheiros fazem isso com você, da primeira conversa a todos os times, em cerca de um mês.",
+    steps: [
+      "Conversa de descoberta",
+      "Piloto pago de 4 semanas",
+      "Seus sistemas conectados",
+      "Medimos e expandimos",
+    ],
+    cta: "Agende uma conversa de descoberta",
+    more: "Veja como funciona",
   },
 
   faq: {

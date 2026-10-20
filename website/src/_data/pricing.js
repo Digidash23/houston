@@ -13,7 +13,5 @@ export default function () {
     teamAnnual: 15,
     // Length of the invite-triggered free trial, in days.
     trialDays: 14,
-    // Where "Contact sales" points. Mirrors the site's existing contact CTA.
-    salesEmail: "hello@gethouston.ai",
   };
 }
