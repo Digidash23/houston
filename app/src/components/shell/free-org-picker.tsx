@@ -121,7 +121,7 @@ export function FreeOrgPicker({
   /** Where focus lands on close: the frame has no trigger of its own. */
   returnFocus: () => void;
 }) {
-  const { t, i18n } = useTranslation("plan");
+  const { t } = useTranslation("plan");
   const close = () => setFrame(closeChoicePicker);
   return (
     <PlanBriefingFrame
@@ -142,9 +142,7 @@ export function FreeOrgPicker({
         <PickerBody
           choice={choice}
           onAnswer={(outcome) =>
-            setFrame((current) =>
-              choicePickerSaved(current, outcome, i18n.language),
-            )
+            setFrame((current) => choicePickerSaved(current, outcome))
           }
         />
       )}

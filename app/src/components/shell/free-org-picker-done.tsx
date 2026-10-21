@@ -1,4 +1,4 @@
-import type { ChoiceDone } from "@houston/sdk";
+import { type ChoiceDone, formatCutoverDate } from "@houston/sdk";
 import { DialogDescription, DialogTitle } from "@houston-ai/core";
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -17,14 +17,20 @@ export function DoneStep({
   done: ChoiceDone;
   onClose: () => void;
 }) {
-  const { t } = useTranslation("plan");
+  const { t, i18n } = useTranslation("plan");
   const orgName = useOrgName();
-  const body =
+  // Formatted on render, so an open step follows a language change.
+  const date = formatCutoverDate(done.cutoverAt, i18n.language);
+  const othersNeedPlan = t("choice.done.othersNeedPlan", { date });
+  const lines =
     done.kind === "payer"
-      ? t("choice.done.payer", { paid: orgName(done.paid), date: done.date })
+      ? [
+          t("choice.done.payer", { paid: orgName(done.paid), date }),
+          ...(done.othersNeedPlan ? [othersNeedPlan] : []),
+        ]
       : done.kind === "others_need_plan"
-        ? t("choice.done.othersNeedPlan", { date: done.date })
-        : null;
+        ? [othersNeedPlan]
+        : [];
   return (
     <>
       <div className="space-y-4 pb-8 pt-4 md:pt-2">
@@ -38,7 +44,11 @@ export function DoneStep({
           {t("choice.done.title", { name: orgName(done.free) })}
         </DialogTitle>
         <DialogDescription className="max-w-prose space-y-2 text-base leading-relaxed text-ink">
-          {body && <span className="block">{body}</span>}
+          {lines.map((line) => (
+            <span key={line} className="block">
+              {line}
+            </span>
+          ))}
           <span className="block text-sm text-ink-muted">
             {t("choice.done.change")}
           </span>

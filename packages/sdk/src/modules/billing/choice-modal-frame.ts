@@ -16,6 +16,16 @@ export type ChoiceModalPhase =
   | { step: "done"; done: ChoiceDone };
 
 /**
+ * What keeps the frame's step past the modal. `none`: the frame follows the
+ * modal. `until_answer`: the modal closed under an open picker, as the stored
+ * pick's cache write does before or after the save's own answer lands; the
+ * picker stays until {@link finishPicking} or a close settles it.
+ * `behind_dialog`: a plan dialog hides the success step, which shows again
+ * once that dialog is gone.
+ */
+export type ChoiceFrameHold = "none" | "until_answer" | "behind_dialog";
+
+/**
  * What the pricing-change modal's frame shows, carried from one render to the
  * next. `shown` is the last open modal: it keeps the frame's content through
  * the close animation, after the notice itself has gone.
@@ -24,6 +34,7 @@ export interface ChoiceModalFrame {
   open: boolean;
   shown: ShownChoiceModal | null;
   phase: ChoiceModalPhase;
+  hold: ChoiceFrameHold;
 }
 
 const INTRO: ChoiceModalPhase = { step: "intro" };
@@ -32,35 +43,63 @@ export const CLOSED_CHOICE_FRAME: ChoiceModalFrame = {
   open: false,
   shown: null,
   phase: INTRO,
+  hold: "none",
 };
 
 /**
  * The frame for the latest {@link ChoiceModal}. It reopens on the intro, so a
  * modal hidden behind a plan dialog comes back where it started; a notice that
  * stops being a pick (a refusal's refetch shows the person cannot pick) drops
- * the picker. An open success step ignores the modal: the stored pick turns
- * the notice into `picked`, which hides the modal, and only the person closes
- * that step ({@link closeChoiceFrame}). Answers `frame` itself when nothing
- * changed, so a surface that stores the frame can tell when to store it again.
+ * the picker. A modal that closes for any other reason than a plan dialog
+ * leaves an open picker open (`until_answer`). An open success step ignores
+ * the modal, which a stored pick closes, except to step aside for a plan
+ * dialog; only the person closes it ({@link closeChoiceFrame}). Answers
+ * `frame` itself when nothing changed, so a surface that stores the frame can
+ * tell when to store it again.
  */
 export function nextChoiceModalFrame(
   frame: ChoiceModalFrame,
   modal: ChoiceModal,
 ): ChoiceModalFrame {
-  if (frame.open && frame.phase.step === "done") return frame;
-  if (!modal.open) return frame.open ? { ...frame, open: false } : frame;
+  if (frame.phase.step === "done" && (frame.open || frame.hold !== "none"))
+    return doneFrame(frame, modal);
+  if (!modal.open) {
+    if (!frame.open) return frame;
+    if (frame.phase.step === "picking" && !modal.behindDialog)
+      return frame.hold === "until_answer"
+        ? frame
+        : { ...frame, hold: "until_answer" };
+    return { ...frame, open: false, hold: "none" };
+  }
   const picking =
     frame.open &&
     frame.phase.step === "picking" &&
     modal.notice.kind === "pick";
   const unchanged =
     frame.open &&
+    frame.hold === "none" &&
     picking === (frame.phase.step === "picking") &&
     frame.shown !== null &&
     frame.shown.close === modal.close &&
     sameNotice(frame.shown.notice, modal.notice);
   if (unchanged) return frame;
-  return { open: true, shown: modal, phase: picking ? frame.phase : INTRO };
+  return {
+    open: true,
+    shown: modal,
+    phase: picking ? frame.phase : INTRO,
+    hold: "none",
+  };
+}
+
+/** A success step the person has not closed: it only steps aside. */
+function doneFrame(
+  frame: ChoiceModalFrame,
+  modal: ChoiceModal,
+): ChoiceModalFrame {
+  const behind = !modal.open && modal.behindDialog;
+  if (frame.open)
+    return behind ? { ...frame, open: false, hold: "behind_dialog" } : frame;
+  return behind ? frame : { ...frame, open: true, hold: "none" };
 }
 
 /** The frame once the person asks to pick; unchanged unless a pick is open. */
@@ -77,17 +116,21 @@ export function startPicking(frame: ChoiceModalFrame): ChoiceModalFrame {
 /**
  * The frame after a save answers. A stored pick moves an open picker to the
  * success step; a refusal keeps the picker, which shows the refusal's own
- * copy, and never reaches the success step.
+ * copy, and never reaches the success step. A refusal for a picker the modal
+ * closed under closes it: the notice no longer asks.
  */
 export function finishPicking(
   frame: ChoiceModalFrame,
   outcome: BillingChoiceSave,
-  locale?: string,
 ): ChoiceModalFrame {
   if (!frame.open || frame.phase.step !== "picking") return frame;
-  if (outcome.kind !== "saved") return frame;
-  const done = choiceDone(outcome.choice, locale);
-  return done ? { ...frame, phase: { step: "done", done } } : frame;
+  if (outcome.kind !== "saved")
+    return frame.hold === "until_answer"
+      ? { ...frame, open: false, hold: "none" }
+      : frame;
+  const done = choiceDone(outcome.choice);
+  if (!done) return frame;
+  return { ...frame, phase: { step: "done", done }, hold: "none" };
 }
 
 /**
@@ -96,7 +139,7 @@ export function finishPicking(
  * open again is the modal's call (a closed session, a stored pick).
  */
 export function closeChoiceFrame(frame: ChoiceModalFrame): ChoiceModalFrame {
-  return frame.open ? { ...frame, open: false } : frame;
+  return frame.open ? { ...frame, open: false, hold: "none" } : frame;
 }
 
 function sameNotice(a: AnnouncedChoice, b: AnnouncedChoice): boolean {

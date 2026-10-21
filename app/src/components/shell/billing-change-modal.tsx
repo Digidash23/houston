@@ -80,9 +80,7 @@ export function BillingChangeModal({
         <PickerBody
           choice={choice}
           onAnswer={(outcome) =>
-            setFrame((current) =>
-              finishPicking(current, outcome, i18n.language),
-            )
+            setFrame((current) => finishPicking(current, outcome))
           }
         />
       ) : (

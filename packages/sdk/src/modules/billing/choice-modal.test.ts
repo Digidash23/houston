@@ -21,6 +21,7 @@ const at = (patch: Partial<ChoiceModalContext> = {}): ChoiceModalContext => ({
   ...patch,
 });
 
+const CLOSED = { open: false, behindDialog: false };
 const single = choice({ needed: false, orgs: [PERSONAL] });
 
 describe("choiceModal", () => {
@@ -38,9 +39,9 @@ describe("choiceModal", () => {
   });
 
   it("waits for the next app open after Maybe later", () => {
-    expect(choiceModal(choice(), at({ closedThisSession: true }))).toEqual({
-      open: false,
-    });
+    expect(choiceModal(choice(), at({ closedThisSession: true }))).toEqual(
+      CLOSED,
+    );
   });
 
   it("still asks after a stored dismissal, since the pick is still open", () => {
@@ -66,23 +67,23 @@ describe("choiceModal", () => {
       notice: { kind: "member", date: "Friday, October 23" },
       close: "everywhere",
     });
-    expect(choiceModal({ ...single, noticeDismissed: true }, at())).toEqual({
-      open: false,
-    });
+    expect(choiceModal({ ...single, noticeDismissed: true }, at())).toEqual(
+      CLOSED,
+    );
   });
 
   it("stays closed for the session once a read-only notice is closed", () => {
     // The dismissal failed, so the server still says it is not dismissed: it
     // shows again on a later app open, which retries the dismissal.
-    expect(choiceModal(single, at({ closedThisSession: true }))).toEqual({
-      open: false,
-    });
+    expect(choiceModal(single, at({ closedThisSession: true }))).toEqual(
+      CLOSED,
+    );
     expect(
       choiceModal(
         choice({ needed: false, orgs: [] }),
         at({ closedThisSession: true }),
       ),
-    ).toEqual({ open: false });
+    ).toEqual(CLOSED);
   });
 
   it("shows nothing for a stored pick the owner kept after dropping to one org", () => {
@@ -91,7 +92,7 @@ describe("choiceModal", () => {
       orgs: [INNOVA],
       freeOrgSlug: INNOVA.slug,
     });
-    expect(choiceModal(narrowed, at())).toEqual({ open: false });
+    expect(choiceModal(narrowed, at())).toEqual(CLOSED);
   });
 
   it("offers no picker once the change window has closed", () => {
@@ -100,12 +101,12 @@ describe("choiceModal", () => {
         choice({ changeableUntil: "2026-10-20T00:00:00.000Z" }),
         at(),
       ),
-    ).toEqual({ open: false });
+    ).toEqual(CLOSED);
   });
 
   it("shows nothing once the pick is stored", () => {
     const picked = choice({ freeOrgSlug: LA_FILA.slug });
-    expect(choiceModal(picked, at())).toEqual({ open: false });
+    expect(choiceModal(picked, at())).toEqual(CLOSED);
     expect(
       choiceModal(
         choice({
@@ -115,30 +116,30 @@ describe("choiceModal", () => {
         }),
         at(),
       ),
-    ).toEqual({ open: false });
+    ).toEqual(CLOSED);
   });
 
   it("never stacks on a plan dialog, and returns once it is gone", () => {
-    expect(choiceModal(choice(), at({ otherDialogOpen: true }))).toEqual({
-      open: false,
-    });
-    expect(choiceModal(single, at({ otherDialogOpen: true }))).toEqual({
-      open: false,
-    });
+    const behind = { open: false, behindDialog: true };
+    expect(choiceModal(choice(), at({ otherDialogOpen: true }))).toEqual(
+      behind,
+    );
+    expect(choiceModal(single, at({ otherDialogOpen: true }))).toEqual(behind);
+    // A stored pick has nothing to show, but the frame still learns it waits.
+    const stored = choice({ freeOrgSlug: LA_FILA.slug });
+    expect(choiceModal(stored, at({ otherDialogOpen: true }))).toEqual(behind);
     expect(choiceModal(choice(), at({ otherDialogOpen: false }))).toMatchObject(
       { open: true },
     );
   });
 
   it("shows nothing when applied, past the cutover, or unserved", () => {
-    expect(choiceModal(choice({ state: "applied" }), at())).toEqual({
-      open: false,
-    });
-    expect(choiceModal(choice(), at({ now: Date.parse(CUTOVER) }))).toEqual({
-      open: false,
-    });
-    expect(choiceModal(null, at())).toEqual({ open: false });
-    expect(choiceModal(undefined, at())).toEqual({ open: false });
+    expect(choiceModal(choice({ state: "applied" }), at())).toEqual(CLOSED);
+    expect(choiceModal(choice(), at({ now: Date.parse(CUTOVER) }))).toEqual(
+      CLOSED,
+    );
+    expect(choiceModal(null, at())).toEqual(CLOSED);
+    expect(choiceModal(undefined, at())).toEqual(CLOSED);
   });
 });
 

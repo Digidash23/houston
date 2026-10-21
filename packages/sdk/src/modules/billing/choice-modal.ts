@@ -35,10 +35,14 @@ export interface ChoiceModalContext extends ChoiceContext {
  * stores the dismissal on the server (`dismissChoiceNotice`) so no device
  * shows it again. A dismissal that fails leaves the server record unset, so
  * the notice shows on a later app open and closing it retries.
+ * `behindDialog`: a closed modal is only waiting for a plan dialog to go, so
+ * the frame can hold a success step until then ({@link nextChoiceModalFrame}).
  */
 export type ChoiceModal =
-  | { open: false }
+  | { open: false; behindDialog: boolean }
   | { open: true; notice: AnnouncedChoice; close: "session" | "everywhere" };
+
+const CLOSED: ChoiceModal = { open: false, behindDialog: false };
 
 /** The modal while it is open: what it announces and what closing does. */
 export type ShownChoiceModal = Extract<ChoiceModal, { open: true }>;
@@ -47,8 +51,8 @@ export function choiceModal(
   choice: BillingChoice | null | undefined,
   context: ChoiceModalContext,
 ): ChoiceModal {
-  if (context.otherDialogOpen || context.closedThisSession)
-    return { open: false };
+  if (context.closedThisSession) return CLOSED;
+  if (context.otherDialogOpen) return { open: false, behindDialog: true };
   const notice = choiceNotice(choice, context);
   switch (notice.kind) {
     case "pick":
@@ -57,7 +61,7 @@ export function choiceModal(
     case "member":
       return { open: true, notice, close: "everywhere" };
     default:
-      return { open: false };
+      return CLOSED;
   }
 }
 

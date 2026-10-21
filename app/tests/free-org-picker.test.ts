@@ -139,7 +139,7 @@ describe("the free-org picker", () => {
 
 /** The success step's title, lines and button for a stored choice. */
 function doneText(stored: BillingChoice) {
-  const step = choiceDone(stored, "en");
+  const step = choiceDone(stored);
   ok(step, "a stored pick has a success step");
   const page = new JSDOM(
     render(
@@ -174,7 +174,7 @@ describe("the success step", () => {
     );
   });
 
-  it("tells a payer which org the subscription pays for", () => {
+  it("tells a payer with three orgs what the plan pays for and what needs one", () => {
     deepStrictEqual(
       doneText({
         ...CHOICE,
@@ -185,11 +185,45 @@ describe("the success step", () => {
         title: "Personal stays free",
         lines: [
           "Your subscription pays for Innova from Friday, October 23.",
+          "Your other organizations need a plan from Friday, October 23.",
           "You can change this in Settings.",
         ],
         buttons: ["Done"],
       },
     );
+  });
+
+  it("tells a payer with two orgs only what the plan pays for", () => {
+    const [, innova, laFila] = CHOICE.orgs;
+    deepStrictEqual(
+      doneText({
+        ...CHOICE,
+        orgs: [innova, laFila],
+        freeOrgSlug: "1111111111111111",
+        paidOrgSlug: "2222222222222222",
+      }).lines,
+      [
+        "Your subscription pays for Innova from Friday, October 23.",
+        "You can change this in Settings.",
+      ],
+    );
+  });
+
+  it("formats the date in the reader's current language", async () => {
+    await i18next.changeLanguage("es");
+    try {
+      const { lines } = doneText({
+        ...CHOICE,
+        payer: null,
+        freeOrgSlug: "1111111111111111",
+      });
+      strictEqual(
+        lines[0],
+        "Tus otras organizaciones necesitan un plan desde el viernes, 23 de octubre.",
+      );
+    } finally {
+      await i18next.changeLanguage("en");
+    }
   });
 });
 

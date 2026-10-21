@@ -1,38 +1,49 @@
 import type { BillingChoice, BillingChoiceOrg } from "@houston/wire-types";
 import type { BillingChoiceSave } from "./choice";
-import { formatCutoverDate } from "./choice-model";
+import { choosesPaidOrg } from "./choice-model";
 
 /**
  * What the picker's success step says once a pick is stored. `payer`: the
- * subscription pays for `paid` from the cutover. `others_need_plan`: the
- * person's other orgs need a plan from then. `only_org`: they own just the
- * free one now, so there is nothing else to say.
+ * subscription pays for `paid` from the cutover (`othersNeedPlan`: they own
+ * more orgs than the free and the paid one, and those need a plan from then).
+ * `others_need_plan`: the person's other orgs need a plan from then.
+ * `only_org`: they own just the free one now, so there is nothing else to say.
  */
 export type ChoiceDone = {
   free: BillingChoiceOrg;
-  /** The cutover, formatted as the intro formats it ("Friday, October 23"). */
-  date: string;
+  /**
+   * The cutover instant. The surface formats it when it renders
+   * ({@link formatCutoverDate}), so a language change reaches an open step.
+   */
+  cutoverAt: string;
 } & (
-  | { kind: "payer"; paid: BillingChoiceOrg }
+  | { kind: "payer"; paid: BillingChoiceOrg; othersNeedPlan: boolean }
   | { kind: "others_need_plan" }
   | { kind: "only_org" }
 );
 
 /** The success step for a stored choice, or null if it holds no free pick. */
-export function choiceDone(
-  saved: BillingChoice,
-  locale?: string,
-): ChoiceDone | null {
+export function choiceDone(saved: BillingChoice): ChoiceDone | null {
   const free = saved.orgs.find((org) => org.slug === saved.freeOrgSlug);
   if (!free) return null;
-  const date = formatCutoverDate(saved.cutoverAt, locale);
-  const paid = saved.orgs.find(
-    (org) => org.slug === saved.paidOrgSlug && org.slug !== free.slug,
-  );
-  if (paid) return { kind: "payer", free, paid, date };
+  const { cutoverAt } = saved;
+  // A paid org on the record means nothing without a subscription to move.
+  const paid = choosesPaidOrg(saved)
+    ? saved.orgs.find(
+        (org) => org.slug === saved.paidOrgSlug && org.slug !== free.slug,
+      )
+    : undefined;
+  if (paid)
+    return {
+      kind: "payer",
+      free,
+      paid,
+      othersNeedPlan: saved.orgs.length > 2,
+      cutoverAt,
+    };
   return saved.orgs.length > 1
-    ? { kind: "others_need_plan", free, date }
-    : { kind: "only_org", free, date };
+    ? { kind: "others_need_plan", free, cutoverAt }
+    : { kind: "only_org", free, cutoverAt };
 }
 
 /**
@@ -68,9 +79,8 @@ export function closeChoicePicker(frame: ChoicePickerFrame): ChoicePickerFrame {
 export function choicePickerSaved(
   frame: ChoicePickerFrame,
   outcome: BillingChoiceSave,
-  locale?: string,
 ): ChoicePickerFrame {
   if (!frame.open || frame.done || outcome.kind !== "saved") return frame;
-  const done = choiceDone(outcome.choice, locale);
+  const done = choiceDone(outcome.choice);
   return done ? { open: true, done } : frame;
 }

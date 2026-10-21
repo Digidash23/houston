@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BillingChoiceSave } from "./choice";
-import { BEFORE, choice, INNOVA, LA_FILA } from "./choice-fixtures";
+import { BEFORE, CUTOVER, choice, INNOVA, LA_FILA } from "./choice-fixtures";
 import { type ChoiceModalContext, choiceModal } from "./choice-modal";
 import {
   type ChoiceModalFrame,
@@ -31,11 +31,16 @@ const INTRO = { step: "intro" };
 /** The frame after each modal in turn, from a closed one. */
 const run = (...modals: (typeof pick)[]): ChoiceModalFrame =>
   modals.reduce(nextChoiceModalFrame, CLOSED_CHOICE_FRAME);
-const savedFrame = () => finishPicking(startPicking(run(pick)), saved, "en");
+const savedFrame = () => finishPicking(startPicking(run(pick)), saved);
 
 describe("nextChoiceModalFrame", () => {
   it("opens on the intro", () => {
-    expect(run(pick)).toEqual({ open: true, shown: pick, phase: INTRO });
+    expect(run(pick)).toEqual({
+      open: true,
+      shown: pick,
+      phase: INTRO,
+      hold: "none",
+    });
   });
 
   it("answers the same frame while nothing changes, so a render settles", () => {
@@ -53,6 +58,7 @@ describe("nextChoiceModalFrame", () => {
       open: true,
       shown: single,
       phase: INTRO,
+      hold: "none",
     });
   });
 
@@ -63,11 +69,53 @@ describe("nextChoiceModalFrame", () => {
       open: false,
       shown: pick,
       phase: { step: "picking" },
+      hold: "none",
     });
     expect(nextChoiceModalFrame(shut, pick)).toEqual({
       open: true,
       shown: pick,
       phase: INTRO,
+      hold: "none",
+    });
+  });
+});
+
+describe("a picker the modal closes under", () => {
+  // The save's cache write turns the notice into picked, which closes the
+  // modal, before or after the save's own answer reaches finishPicking.
+  it("stays open until the save answers, then moves to the success step", () => {
+    const held = nextChoiceModalFrame(startPicking(run(pick)), picked);
+    expect(held).toMatchObject({ open: true, phase: { step: "picking" } });
+    expect(nextChoiceModalFrame(held, picked)).toBe(held);
+    expect(finishPicking(held, saved)).toMatchObject({
+      open: true,
+      phase: { step: "done", done: { kind: "others_need_plan", free: INNOVA } },
+    });
+  });
+
+  it("closes on a refusal, since the notice no longer asks", () => {
+    const held = nextChoiceModalFrame(startPicking(run(pick)), picked);
+    expect(finishPicking(held, { kind: "not_owner" })).toMatchObject({
+      open: false,
+      phase: { step: "picking" },
+    });
+  });
+
+  it("closes when the person closes it", () => {
+    const held = nextChoiceModalFrame(startPicking(run(pick)), picked);
+    expect(closeChoiceFrame(held)).toMatchObject({ open: false });
+    expect(nextChoiceModalFrame(closeChoiceFrame(held), picked)).toMatchObject({
+      open: false,
+    });
+  });
+
+  it("follows the modal again once it reopens on the same pick", () => {
+    const held = nextChoiceModalFrame(startPicking(run(pick)), picked);
+    expect(nextChoiceModalFrame(held, pick)).toEqual({
+      open: true,
+      shown: pick,
+      phase: { step: "picking" },
+      hold: "none",
     });
   });
 });
@@ -94,18 +142,34 @@ describe("the success step", () => {
         done: {
           kind: "others_need_plan",
           free: INNOVA,
-          date: "Friday, October 23",
+          cutoverAt: CUTOVER,
         },
       },
     });
   });
 
   it("survives the refetch that turns the notice into picked", () => {
-    expect(picked).toEqual({ open: false });
+    expect(picked).toEqual({ open: false, behindDialog: false });
     const frame = savedFrame();
     expect(nextChoiceModalFrame(frame, picked)).toBe(frame);
-    // A plan dialog arriving meanwhile does not take it away either.
-    expect(nextChoiceModalFrame(frame, closed)).toBe(frame);
+  });
+
+  it("hides behind a plan dialog, keeping the step, then shows again", () => {
+    const behind = nextChoiceModalFrame(savedFrame(), closed);
+    expect(behind).toMatchObject({
+      open: false,
+      phase: { step: "done", done: { free: INNOVA } },
+    });
+    expect(nextChoiceModalFrame(behind, closed)).toBe(behind);
+    expect(nextChoiceModalFrame(behind, picked)).toEqual(savedFrame());
+  });
+
+  it("stays closed behind a plan dialog once the person closed it", () => {
+    const shut = closeChoiceFrame(savedFrame());
+    expect(nextChoiceModalFrame(shut, closed)).toBe(shut);
+    expect(
+      nextChoiceModalFrame(nextChoiceModalFrame(shut, closed), picked),
+    ).toBe(shut);
   });
 
   it("closes only when the person closes it, and stays closed", () => {
@@ -119,20 +183,20 @@ describe("the success step", () => {
   it("never follows a refusal", () => {
     const picking = startPicking(run(pick));
     for (const kind of ["not_owner", "not_payer", "same_org"] as const)
-      expect(finishPicking(picking, { kind }, "en")).toBe(picking);
+      expect(finishPicking(picking, { kind })).toBe(picking);
   });
 
   it("needs an open picker: never from the intro or a closed frame", () => {
     const intro = run(pick);
-    expect(finishPicking(intro, saved, "en")).toBe(intro);
+    expect(finishPicking(intro, saved)).toBe(intro);
     const shut = closeChoiceFrame(startPicking(run(pick)));
-    expect(finishPicking(shut, saved, "en")).toBe(shut);
+    expect(finishPicking(shut, saved)).toBe(shut);
   });
 
   it("ignores a save that stored no free pick", () => {
     const picking = startPicking(run(pick));
     const empty: BillingChoiceSave = { kind: "saved", choice: choice() };
-    expect(finishPicking(picking, empty, "en")).toBe(picking);
+    expect(finishPicking(picking, empty)).toBe(picking);
   });
 
   it("reopens on the intro if the notice ever asks again", () => {
@@ -141,6 +205,7 @@ describe("the success step", () => {
       open: true,
       shown: pick,
       phase: INTRO,
+      hold: "none",
     });
   });
 });

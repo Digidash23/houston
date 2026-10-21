@@ -7,7 +7,7 @@ import {
   closeChoicePicker,
   openChoicePicker,
 } from "./choice-done";
-import { choice, INNOVA, LA_FILA, PERSONAL } from "./choice-fixtures";
+import { CUTOVER, choice, INNOVA, LA_FILA, PERSONAL } from "./choice-fixtures";
 
 const saved = (patch: Parameters<typeof choice>[0]): BillingChoiceSave => ({
   kind: "saved",
@@ -16,10 +16,10 @@ const saved = (patch: Parameters<typeof choice>[0]): BillingChoiceSave => ({
 
 describe("choiceDone", () => {
   it("tells a non-payer that the other orgs need a plan from the cutover", () => {
-    expect(choiceDone(choice({ freeOrgSlug: LA_FILA.slug }), "en")).toEqual({
+    expect(choiceDone(choice({ freeOrgSlug: LA_FILA.slug }))).toEqual({
       kind: "others_need_plan",
       free: LA_FILA,
-      date: "Friday, October 23",
+      cutoverAt: CUTOVER,
     });
   });
 
@@ -28,28 +28,53 @@ describe("choiceDone", () => {
       payer: "plus",
       freeOrgSlug: LA_FILA.slug,
       paidOrgSlug: INNOVA.slug,
+      orgs: [INNOVA, LA_FILA],
     });
-    expect(choiceDone(stored, "en")).toEqual({
+    expect(choiceDone(stored)).toEqual({
       kind: "payer",
       free: LA_FILA,
       paid: INNOVA,
-      date: "Friday, October 23",
+      othersNeedPlan: false,
+      cutoverAt: CUTOVER,
     });
   });
 
-  it("formats the date in the reader's language", () => {
-    const stored = choice({ freeOrgSlug: LA_FILA.slug });
-    expect(choiceDone(stored, "es")?.date).toBe("viernes, 23 de octubre");
+  it("tells a payer with three orgs that the rest need a plan", () => {
+    const stored = choice({
+      payer: "comp",
+      freeOrgSlug: LA_FILA.slug,
+      paidOrgSlug: INNOVA.slug,
+      orgs: [PERSONAL, INNOVA, LA_FILA],
+    });
+    expect(choiceDone(stored)).toMatchObject({
+      kind: "payer",
+      paid: INNOVA,
+      othersNeedPlan: true,
+    });
+  });
+
+  it("never names a paid org for someone with no subscription to move", () => {
+    // A paid org left on the record from an earlier subscription.
+    const stored = choice({
+      payer: null,
+      freeOrgSlug: LA_FILA.slug,
+      paidOrgSlug: INNOVA.slug,
+    });
+    expect(choiceDone(stored)).toEqual({
+      kind: "others_need_plan",
+      free: LA_FILA,
+      cutoverAt: CUTOVER,
+    });
   });
 
   it("says nothing more when the free org is the only one left", () => {
     const stored = choice({ freeOrgSlug: PERSONAL.slug, orgs: [PERSONAL] });
-    expect(choiceDone(stored, "en")).toMatchObject({ kind: "only_org" });
+    expect(choiceDone(stored)).toMatchObject({ kind: "only_org" });
   });
 
   it("has no success step without a stored free pick", () => {
-    expect(choiceDone(choice(), "en")).toBeNull();
-    expect(choiceDone(choice({ freeOrgSlug: "gone" }), "en")).toBeNull();
+    expect(choiceDone(choice())).toBeNull();
+    expect(choiceDone(choice({ freeOrgSlug: "gone" }))).toBeNull();
   });
 });
 
@@ -58,7 +83,6 @@ describe("the picker opened from Settings", () => {
     const frame = choicePickerSaved(
       openChoicePicker(),
       saved({ freeOrgSlug: INNOVA.slug }),
-      "en",
     );
     expect(frame).toMatchObject({
       open: true,
@@ -71,9 +95,9 @@ describe("the picker opened from Settings", () => {
 
   it("never shows the success step for a refusal or a closed picker", () => {
     const open = openChoicePicker();
-    expect(choicePickerSaved(open, { kind: "not_owner" }, "en")).toBe(open);
+    expect(choicePickerSaved(open, { kind: "not_owner" })).toBe(open);
     const stored = saved({ freeOrgSlug: INNOVA.slug });
-    expect(choicePickerSaved(CLOSED_CHOICE_PICKER, stored, "en")).toBe(
+    expect(choicePickerSaved(CLOSED_CHOICE_PICKER, stored)).toBe(
       CLOSED_CHOICE_PICKER,
     );
   });

@@ -128,6 +128,10 @@ test("a Plus payer reads that the subscription moves, then picks both orgs", asy
   await expect(modal).toContainText(
     "Your subscription pays for Innova from Friday, October 23.",
   );
+  // A third org is neither free nor paid for.
+  await expect(modal).toContainText(
+    "Your other organizations need a plan from Friday, October 23.",
+  );
   expect((await choiceCalls()).filter((c) => c.route === "set")).toEqual([
     {
       route: "set",
