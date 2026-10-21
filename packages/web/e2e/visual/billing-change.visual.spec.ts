@@ -84,9 +84,9 @@ for (const width of ["desktop", "phone"] as const) {
 
 test("pricing change modal, payer step — desktop", async ({ page }) => {
   const modal = await boot(page, "desktop", payerChoice());
-  await expect(modal).toContainText("Your subscription moves");
+  await expect(modal).toContainText("Your subscription comes with you");
   await modal.getByRole("button", { name: CHOOSE }).click();
-  await modal.getByRole("button", { name: "Keep La Fila free" }).click();
+  await modal.getByRole("button", { name: "Next" }).click();
   await expect(modal).toContainText("Step 2 of 2");
   await shoot(page, "billing-change-modal-payer-desktop.png");
 });
@@ -94,22 +94,22 @@ test("pricing change modal, payer step — desktop", async ({ page }) => {
 test("pricing change modal, payer success step — desktop", async ({ page }) => {
   const modal = await boot(page, "desktop", payerChoice());
   await modal.getByRole("button", { name: CHOOSE }).click();
-  await modal.getByRole("button", { name: "Keep La Fila free" }).click();
-  await modal.getByRole("button", { name: "Use my plan for Innova" }).click();
+  await modal.getByRole("button", { name: "Next" }).click();
+  await modal.getByRole("button", { name: "Pay for Innova" }).click();
   await expect(modal.getByRole("button", { name: "Done" })).toBeVisible();
-  await expect(modal).toContainText("Your subscription pays for Innova");
-  await expect(modal).toContainText("Your other organizations need a plan");
+  await expect(modal).toContainText("Your subscription");
+  await expect(modal).toContainText("Needs a plan");
   await shoot(page, "billing-change-modal-done-payer-desktop.png");
 });
 
 test("pricing change modal, member — desktop", async ({ page }) => {
   const modal = await boot(page, "desktop", memberChoice());
-  await expect(modal).toContainText("personal and team spaces work the same.");
+  await expect(modal).toContainText("Nothing to do on your side");
   await shoot(page, "billing-change-modal-member-desktop.png");
 });
 
 test("pricing change modal, single org — desktop", async ({ page }) => {
   const modal = await boot(page, "desktop", singleOrgChoice());
-  await expect(modal).toContainText("invite people to La Fila. It stays free.");
+  await expect(modal).toContainText("La Fila stays free");
   await shoot(page, "billing-change-modal-single-org-desktop.png");
 });
