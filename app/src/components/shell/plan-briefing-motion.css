@@ -8,15 +8,20 @@
   animation: briefing-step var(--briefing-duration) var(--briefing-easing) backwards;
 }
 
-/* Points and rows rise in turn. They take clicks while they do. */
+/*
+ * Points and rows rise in turn, a fifth of the step's duration apart. The
+ * fourth and every later one start together, so the last starts by the
+ * step's own duration however long the list is. They take clicks while
+ * they rise.
+ */
 .plan-briefing-stagger > * {
-  animation: briefing-row calc(var(--briefing-duration) * 1.5) var(--briefing-easing) backwards;
-  animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4 * 4);
+  --briefing-stagger: calc(var(--briefing-duration) / 5);
+  animation: briefing-row calc(var(--briefing-duration) * 1.25) var(--briefing-easing) backwards;
+  animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-stagger) * 3);
 }
 .plan-briefing-stagger > :nth-child(1) { animation-delay: calc(var(--briefing-press) / 2); }
-.plan-briefing-stagger > :nth-child(2) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4); }
-.plan-briefing-stagger > :nth-child(3) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4 * 2); }
-.plan-briefing-stagger > :nth-child(4) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4 * 3); }
+.plan-briefing-stagger > :nth-child(2) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-stagger)); }
+.plan-briefing-stagger > :nth-child(3) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-stagger) * 2); }
 
 .plan-briefing-press {
   transition:
