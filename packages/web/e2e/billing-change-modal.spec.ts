@@ -65,7 +65,6 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
     "La FilaMost active1 member · 396 messages in the last 30 days",
   );
   await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeChecked();
-  await expect(modal).toContainText("You can change this until October 23.");
 
   await modal.getByText("Innova", { exact: true }).click();
   await modal.getByRole("button", { name: "Keep Innova free" }).click();

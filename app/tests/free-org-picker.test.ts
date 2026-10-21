@@ -100,9 +100,6 @@ describe("the free-org picker", () => {
     ]);
     const checked = page.querySelector<HTMLInputElement>("input:checked");
     strictEqual(checked?.value, "1111111111111111");
-    ok(
-      page.body.textContent?.includes("You can change this until October 23."),
-    );
     strictEqual(page.querySelector("button")?.textContent, "Keep La Fila free");
   });
 

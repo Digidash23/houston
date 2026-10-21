@@ -125,11 +125,16 @@ export function PickerFooter({
   start,
   primary,
 }: {
-  start: ReactNode;
+  start?: ReactNode;
   primary: ReactNode;
 }) {
   return (
-    <div className="flex flex-col-reverse items-stretch gap-2.5 md:flex-row md:items-center md:justify-between md:gap-3">
+    <div
+      className={cn(
+        "flex flex-col-reverse items-stretch gap-2.5 md:flex-row md:items-center md:gap-3",
+        start ? "md:justify-between" : "md:justify-end",
+      )}
+    >
       {start}
       {primary}
     </div>

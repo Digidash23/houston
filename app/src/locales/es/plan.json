@@ -144,7 +144,6 @@
     },
     "picker": {
       "title": "¿Qué organización sigue gratis?",
-      "body": "La gratis tiene un límite semanal de mensajes que comparten todas las personas que la integran. En las demás, nadie puede enviar mensajes hasta que tenga un plan, pero puedes seguir abriendo todo.",
       "mostActive": "Más activa",
       "personal": "Personal",
       "members_one": "{{count}} miembro",
@@ -153,7 +152,6 @@
       "messages_other": "{{count}} mensajes en los últimos 30 días",
       "noMessages": "Sin mensajes en los últimos 30 días",
       "meta": "{{first}} · {{second}}",
-      "until": "Puedes cambiarlo hasta el {{day}}.",
       "keep": "Mantener {{name}} gratis",
       "close": "Cerrar",
       "step": "Paso {{step}} de 2"

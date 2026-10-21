@@ -144,7 +144,6 @@
     },
     "picker": {
       "title": "Which organization stays free?",
-      "body": "The free one has a weekly message limit shared by everyone in it. In the others, nobody can send messages until it's upgraded, but you can still open everything.",
       "mostActive": "Most active",
       "personal": "Personal",
       "members_one": "{{count}} member",
@@ -153,7 +152,6 @@
       "messages_other": "{{count}} messages in the last 30 days",
       "noMessages": "No messages in the last 30 days",
       "meta": "{{first}} · {{second}}",
-      "until": "You can change this until {{day}}.",
       "keep": "Keep {{name}} free",
       "close": "Close",
       "step": "Step {{step}} of 2"

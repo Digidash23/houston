@@ -1,5 +1,5 @@
 import type { BillingChoice } from "@houston/engine-adapter";
-import { formatCutoverDay, payerTotals, pickerRows } from "@houston/sdk";
+import { payerTotals, pickerRows } from "@houston/sdk";
 import { Button } from "@houston-ai/core";
 import { ChevronLeft, Info } from "lucide-react";
 import { type ReactNode, useId } from "react";
@@ -25,23 +25,16 @@ interface StepProps {
 }
 
 export function FreeStep(props: StepProps & { onConfirm: () => void }) {
-  const { t, i18n } = useTranslation("plan");
+  const { t } = useTranslation("plan");
   const titleId = useId();
   const orgName = useOrgName();
   const rows = pickerRows(props.choice);
   const picked = rows.find((row) => row.org.slug === props.selected)?.org;
-  const day = formatCutoverDay(
-    props.choice.changeableUntil ?? props.choice.cutoverAt,
-    i18n.language,
-  );
   return (
     <>
       <div className="pr-7">
         <StepLabel step={props.step} />
         {props.title(t("choice.picker.title"), titleId)}
-        <p className="mt-2 text-sm leading-relaxed text-hover-text">
-          {t("choice.picker.body")}
-        </p>
       </div>
       <div
         role="radiogroup"
@@ -73,11 +66,6 @@ export function FreeStep(props: StepProps & { onConfirm: () => void }) {
         ))}
       </div>
       <PickerFooter
-        start={
-          <span className="text-center text-xs text-ink-muted md:text-left">
-            {t("choice.picker.until", { day })}
-          </span>
-        }
         primary={
           <Button
             size="lg"
