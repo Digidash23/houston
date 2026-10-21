@@ -13,6 +13,7 @@ let render: (element: ReactElement) => string;
 let steps: typeof import("../src/components/shell/free-org-picker-steps.tsx");
 let done: typeof import("../src/components/shell/free-org-picker-done.tsx");
 let intro: typeof import("../src/components/shell/billing-change-intro.tsx");
+let avatar: typeof import("../src/components/shell/org-avatar.tsx");
 let i18next: typeof import("i18next").default;
 let Dialog: typeof import("@houston-ai/core").Dialog;
 
@@ -33,6 +34,7 @@ before(async () => {
   done = await import("../src/components/shell/free-org-picker-done.tsx");
   ({ Dialog } = await import("@houston-ai/core"));
   intro = await import("../src/components/shell/billing-change-intro.tsx");
+  avatar = await import("../src/components/shell/org-avatar.tsx");
 });
 
 const org = (slug: string, name: string, patch = {}) => ({
@@ -176,6 +178,33 @@ describe("the free-org picker", () => {
       ),
     );
     deepStrictEqual(tones(success), ["crimson", "orange", "teal"]);
+  });
+});
+
+describe("an org avatar", () => {
+  const initials = (name: string) =>
+    doc(h(avatar.OrgAvatar, { slug: "1111111111111111", name })).body
+      .textContent;
+
+  it("takes the first letter of the first two words", () => {
+    strictEqual(initials("la fila"), "LF");
+    strictEqual(initials("Innova"), "IN");
+  });
+
+  it("keeps an emoji whole", () => {
+    strictEqual(initials("🚀 Rocket"), "🚀R");
+    strictEqual(initials("🚀rocket"), "🚀R");
+    strictEqual(initials("🦄"), "🦄");
+  });
+
+  it("paints from the org tokens, never the agent palette", () => {
+    const span = doc(
+      h(avatar.OrgAvatar, { slug: "1111111111111111", name: "La Fila" }),
+    ).querySelector("span");
+    strictEqual(
+      span?.getAttribute("style"),
+      "--org-tone:var(--ht-org-crimson);--org-tone-deep:var(--ht-org-crimson-deep)",
+    );
   });
 });
 

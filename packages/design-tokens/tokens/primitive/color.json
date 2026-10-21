@@ -343,6 +343,52 @@
       "overflow-text": {
         "$value": "#555b66"
       }
+    },
+    "org": {
+      "$type": "color",
+      "$description": "The organization avatar fills, a gradient from each tone to its `-deep` stop. Both stops carry white initials at 4.5:1 or better, so neither theme needs a bright variant.",
+      "teal": {
+        "$value": "#0e8379"
+      },
+      "teal-deep": {
+        "$value": "#115e59"
+      },
+      "purple": {
+        "$value": "#8752f3"
+      },
+      "purple-deep": {
+        "$value": "#5b21b6"
+      },
+      "orange": {
+        "$value": "#ce480c"
+      },
+      "orange-deep": {
+        "$value": "#9a3412"
+      },
+      "navy": {
+        "$value": "#2c6def"
+      },
+      "navy-deep": {
+        "$value": "#1e40af"
+      },
+      "rose": {
+        "$value": "#da2776"
+      },
+      "rose-deep": {
+        "$value": "#9d174d"
+      },
+      "forest": {
+        "$value": "#15863f"
+      },
+      "forest-deep": {
+        "$value": "#166534"
+      },
+      "crimson": {
+        "$value": "#df2b2b"
+      },
+      "crimson-deep": {
+        "$value": "#991b1b"
+      }
     }
   }
 }

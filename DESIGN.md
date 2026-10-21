@@ -107,6 +107,7 @@ Reserved families — do not reach for outside their home:
 - `glow-{blue,indigo,orange,amber}` + `glow-blue-wash`/`glow-blue-shadow`: the running comet (card glow, avatar ring, progress line), theme-invariant, consumed only by the `.card-running-glow` / `.avatar-running-ring` / `.running-glow-line` recipes in `ui/core/src/motion.css`; never as decorative colour elsewhere.
 - `flash`: the routines section flash wash (`ui/routines`), a white alpha in both themes.
 - `qr-ink` / `qr-tile`: a QR code's modules and the tile under them, black on white in EVERY theme and palette (an inverted code fails many phone scanners). `bg-qr-tile` on the tile, `text-qr-ink` + `currentColor` as the code's foreground.
+- `org-{teal,purple,orange,navy,rose,forest,crimson}` + each tone's `-deep` + `org-initials`: ORGANIZATION avatar palette, worn only by `OrgAvatar` (`app/src/components/shell/org-avatar.tsx`) as a gradient from a tone to its `-deep` stop. Both stops carry white initials at 4.5:1 in both themes (`packages/design-tokens/test/contrast.test.ts`), so there is no bright variant. Pick a tone with `orgTone(slug)`, never by list index. Never the agent palette, whose dark tones fail white initials.
 - `person-name-{slate,sage,mauve,taupe,indigo}`: the same five hues retuned for TEXT (the avatar fills carry white initials and land at ~3:1 as text). One person, one tone: `personNameToneClass(id)` from `@houston-ai/board` indexes the same hash as `personToneClass`. Text-only — never use these as fills.
 
 ## 5. Motion rules

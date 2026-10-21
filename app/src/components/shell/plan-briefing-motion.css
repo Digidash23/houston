@@ -44,7 +44,8 @@
 .plan-briefing-tick[data-checked] svg { opacity: 1; transform: none; }
 
 .plan-briefing-avatar {
-  background: linear-gradient(160deg, var(--org-tone), color-mix(in srgb, var(--org-tone) 50%, var(--ht-dialog)));
+  background: linear-gradient(160deg, var(--org-tone), var(--org-tone-deep));
+  color: var(--ht-org-initials);
 }
 
 /* The success check pops, then draws its stroke. */

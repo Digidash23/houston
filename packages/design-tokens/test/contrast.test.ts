@@ -8,9 +8,9 @@ import { parseColor } from "../build/color.mjs";
  * WCAG guard for every colour Houston paints as INFORMATION, where a
  * washed-out hue is not a style slip but something the user cannot read: the
  * two families that carry a sender's NAME in chat, the file-type tints the
- * Files list paints its icon glyphs with, the status hues set as text, and the
- * label on the primary button, whose dark fill is a frost the surface below
- * shows through.
+ * Files list paints its icon glyphs with, the status hues set as text, the
+ * initials on an organization avatar, and the label on the primary button,
+ * whose dark fill is a frost the surface below shows through.
  *
  * Chat attributes every message to its sender WhatsApp-group style: the name
  * renders inside the bubble in that sender's stable tone. Text has to clear
@@ -173,6 +173,26 @@ function buttonSurfaces(theme: Theme): [string, Rgba][] {
   ];
 }
 
+/**
+ * The organization avatar tones. Each is a gradient between two stops carrying
+ * white initials, and a straight sRGB blend of two colours is never lighter than
+ * its lighter end, so both stops clearing the floor means every pixel does.
+ */
+const ORG_TONES = [
+  "teal",
+  "purple",
+  "orange",
+  "navy",
+  "rose",
+  "forest",
+  "crimson",
+] as const;
+
+/** A recessed row inside a modal: the chip wash over the dialog's own fill. */
+function dialogChipSurface(theme: Theme): Rgba {
+  return over(token(theme, "ht-chip"), token(theme, "ht-dialog"));
+}
+
 const AGENT_TONES = [
   "charcoal",
   "forest",
@@ -282,6 +302,43 @@ describe.each([
           ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
         });
       }
+    }
+  }
+
+  for (const status of STATUS_INKS) {
+    for (const alpha of STATUS_WASH_ALPHAS) {
+      it(`status ink "${status}" clears ${CONTRAST_FLOOR}:1 on its own ${alpha * 100}% wash over a row in a dialog`, () => {
+        // The plan briefing's "Free" pill: a status chip in a chip-filled list
+        // on the dialog, which sits on no canvas of its own.
+        const hue = token(theme, `ht-${status}`);
+        const surface = over(
+          { ...hue, a: hue.a * alpha },
+          dialogChipSurface(theme),
+        );
+        const ratio = contrastRatio(
+          over(token(theme, `ht-${status}-ink`), surface),
+          surface,
+        );
+        expect(
+          ratio,
+          `--ht-${status}-ink (${theme}) measures ${ratio.toFixed(2)}:1 on a ${alpha * 100}% --ht-${status} wash over a dialog row, below the ${CONTRAST_FLOOR}:1 body-text floor`,
+        ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
+      });
+    }
+  }
+
+  for (const tone of ORG_TONES) {
+    for (const stop of [tone, `${tone}-deep`]) {
+      it(`org avatar stop "${stop}" carries its initials at ${CONTRAST_FLOOR}:1`, () => {
+        const ratio = contrastRatio(
+          token(theme, "ht-org-initials"),
+          token(theme, `ht-org-${stop}`),
+        );
+        expect(
+          ratio,
+          `--ht-org-initials (${theme}) measures ${ratio.toFixed(2)}:1 on --ht-org-${stop}, below the ${CONTRAST_FLOOR}:1 body-text floor`,
+        ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
+      });
     }
   }
 

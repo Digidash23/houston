@@ -2504,7 +2504,7 @@ components:
     behavior: >-
       SDK pickerRows lists owned orgs busiest first (30-day messages, then
       latest activity, then the personal org) and tags the busiest. Each row
-      is an org avatar (initials on a tone picked from the slug), the name,
+      is an org avatar (initials on an org-token tone picked from the slug), the name,
       the meta line and a check circle on the right; the selected row wears
       an ink ring and a filled check. The stored pick, else the busiest, is
       preselected, and the full-width pill names what it does ("Keep {org}

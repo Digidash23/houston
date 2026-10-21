@@ -1,16 +1,8 @@
-import {
-  AGENT_COLORS,
-  type AgentColorId,
-  cn,
-  colorValue,
-} from "@houston-ai/core";
+import { cn } from "@houston-ai/core";
 import type { CSSProperties } from "react";
 
-/**
- * The agent palette's tones that carry white initials. An org has no colour
- * of its own yet, so it borrows one, picked from its slug.
- */
-const ORG_TONES: readonly AgentColorId[] = [
+/** The `org` token family's tones, each a gradient to its `-deep` stop. */
+const ORG_TONES = [
   "teal",
   "purple",
   "orange",
@@ -18,10 +10,12 @@ const ORG_TONES: readonly AgentColorId[] = [
   "rose",
   "forest",
   "crimson",
-];
+] as const;
+
+export type OrgTone = (typeof ORG_TONES)[number];
 
 /** FNV-1a over the slug, so an org wears one tone on every screen. */
-export function orgTone(slug: string): AgentColorId {
+export function orgTone(slug: string): OrgTone {
   let hash = 0x811c9dc5;
   for (let i = 0; i < slug.length; i++) {
     hash ^= slug.charCodeAt(i);
@@ -30,10 +24,13 @@ export function orgTone(slug: string): AgentColorId {
   return ORG_TONES[hash % ORG_TONES.length];
 }
 
+/** Split by code point, so an emoji is never cut in half. */
 function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const letters =
-    words.length > 1 ? `${words[0][0]}${words[1][0]}` : name.trim().slice(0, 2);
+    words.length > 1
+      ? `${Array.from(words[0])[0]}${Array.from(words[1])[0]}`
+      : Array.from(name.trim()).slice(0, 2).join("");
   return letters.toUpperCase() || "?";
 }
 
@@ -51,14 +48,19 @@ export function OrgAvatar({
   name: string;
   size?: keyof typeof SIZE;
 }) {
-  const tone = AGENT_COLORS.find((color) => color.id === orgTone(slug));
+  const tone = orgTone(slug);
   return (
     <span
       aria-hidden
-      data-tone={tone?.id}
-      style={{ "--org-tone": tone && colorValue(tone) } as CSSProperties}
+      data-tone={tone}
+      style={
+        {
+          "--org-tone": `var(--ht-org-${tone})`,
+          "--org-tone-deep": `var(--ht-org-${tone}-deep)`,
+        } as CSSProperties
+      }
       className={cn(
-        "plan-briefing-avatar grid shrink-0 place-items-center font-semibold text-person-initials",
+        "plan-briefing-avatar grid shrink-0 place-items-center font-semibold",
         SIZE[size],
       )}
     >
