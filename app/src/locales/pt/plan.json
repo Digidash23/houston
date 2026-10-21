@@ -173,7 +173,7 @@
       "messages_other": "{{count}} mensagens nos últimos 30 dias",
       "noMessages": "Nenhuma mensagem nos últimos 30 dias",
       "meta": "{{first}} · {{second}}",
-      "keep": "Manter {{name}} grátis",
+      "keep": "Manter <name/> grátis",
       "close": "Fechar",
       "step": "Passo {{step}} de 2",
       "next": "Próximo",
@@ -187,7 +187,7 @@
       "grace": "Seu preço continua {{today}} por mês até {{date}}, e depois passa para {{monthly}} por mês.",
       "noGrace": "Seu preço continua {{monthly}} por mês.",
       "back": "Voltar",
-      "use": "Pagar por {{name}}"
+      "use": "Pagar por <name/>"
     },
     "done": {
       "title": "{{name}} continua grátis",

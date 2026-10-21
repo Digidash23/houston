@@ -120,6 +120,74 @@ describe("the free-org picker", () => {
     strictEqual(page.querySelector("button")?.textContent, "Next");
   });
 
+  it("asks for a pick and holds the action until there is one", () => {
+    const page = doc(
+      h(steps.FreeStep, {
+        choice: CHOICE,
+        selected: "",
+        onSelect: noop,
+        payer: false,
+        busy: false,
+        title,
+        onConfirm: noop,
+      }),
+    );
+    strictEqual(page.querySelector("input:checked"), null);
+    const button = page.querySelector("button");
+    strictEqual(button?.textContent, "Pick an organization");
+    strictEqual(button?.disabled, true);
+  });
+
+  const paid = (patch: { selected?: string; busy?: boolean }) =>
+    doc(
+      h(steps.PaidStep, {
+        choice: CHOICE,
+        freeSlug: "1111111111111111",
+        selected: "2222222222222222",
+        onSelect: noop,
+        busy: false,
+        title,
+        onBack: noop,
+        onConfirm: noop,
+        ...patch,
+      }),
+    );
+  const buttons = (page: Document) =>
+    [...page.querySelectorAll("button")].map((b) => [
+      b.textContent,
+      b.disabled,
+    ]);
+
+  it("asks a payer for the paid pick when none is left", () => {
+    deepStrictEqual(buttons(paid({ selected: "" })), [
+      ["Pick an organization", true],
+      ["Back", false],
+    ]);
+  });
+
+  it("holds both of a payer's actions while the pick saves", () => {
+    deepStrictEqual(buttons(paid({})), [
+      ["Pay for Innova", false],
+      ["Back", false],
+    ]);
+    deepStrictEqual(buttons(paid({ busy: true })), [
+      ["Pay for Innova", true],
+      ["Back", true],
+    ]);
+    const saving = doc(
+      h(steps.FreeStep, {
+        choice: CHOICE,
+        selected: "1111111111111111",
+        onSelect: noop,
+        payer: false,
+        busy: true,
+        title,
+        onConfirm: noop,
+      }),
+    );
+    deepStrictEqual(buttons(saving), [["Keep La Fila free", true]]);
+  });
+
   it("prices the payer step and keeps the free pick listed but disabled", () => {
     const page = doc(
       h(steps.PaidStep, {

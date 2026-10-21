@@ -1,7 +1,7 @@
 import type { BillingChoice } from "@houston/engine-adapter";
 import { payerTotals, pickerRows } from "@houston/sdk";
 import { type ReactNode, useId } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { OrgRadio, PickerProgress, useOrgName } from "./free-org-picker-rows";
 import { PlanBriefingCta, PlanBriefingQuietButton } from "./plan-briefing-cta";
 
@@ -13,6 +13,30 @@ interface StepProps {
   /** Renders the frame's title; the id names an inner span for aria-labelledby. */
   title: (text: string, id: string) => ReactNode;
   onConfirm: () => void;
+}
+
+/**
+ * An action that names an org ("Keep La Fila free"). Only the name truncates,
+ * so the pill stays one line as the pick moves between short and long names,
+ * and the button's text, its accessible name, stays whole.
+ */
+function NamedLabel({
+  i18nKey,
+  name,
+}: {
+  i18nKey: "choice.picker.keep" | "choice.payer.use";
+  name: string;
+}) {
+  const { t } = useTranslation("plan");
+  return (
+    <span className="flex min-w-0 whitespace-pre">
+      <Trans
+        t={t}
+        i18nKey={i18nKey}
+        components={{ name: <span className="truncate">{name}</span> }}
+      />
+    </span>
+  );
 }
 
 /** The phone sheet seats the actions at the bottom, under the thumb. */
@@ -27,11 +51,13 @@ export function FreeStep(props: StepProps & { payer: boolean }) {
   const orgName = useOrgName();
   const rows = pickerRows(props.choice);
   const picked = rows.find((row) => row.org.slug === props.selected)?.org;
-  const label = !picked
-    ? t("choice.picker.pickOne")
-    : props.payer
-      ? t("choice.picker.next")
-      : t("choice.picker.keep", { name: orgName(picked) });
+  const label = !picked ? (
+    t("choice.picker.pickOne")
+  ) : props.payer ? (
+    t("choice.picker.next")
+  ) : (
+    <NamedLabel i18nKey="choice.picker.keep" name={orgName(picked)} />
+  );
   return (
     <>
       {props.payer && <PickerProgress step={1} />}
@@ -140,9 +166,11 @@ export function PaidStep(
       <Actions>
         <PlanBriefingCta
           label={
-            picked
-              ? t("choice.payer.use", { name: orgName(picked) })
-              : t("choice.picker.pickOne")
+            picked ? (
+              <NamedLabel i18nKey="choice.payer.use" name={orgName(picked)} />
+            ) : (
+              t("choice.picker.pickOne")
+            )
           }
           disabled={!picked || props.busy}
           onClick={props.onConfirm}

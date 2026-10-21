@@ -1,33 +1,31 @@
 import { cn } from "@houston-ai/core";
 import type { ReactNode } from "react";
-import { useSwapped } from "./plan-briefing-swap";
 
 /**
  * The briefing's one bright element: its primary action, a full-width pill.
- * A label that changes (the picker's "Keep La Fila free") swaps in with a
- * short blur. Kept apart from the frame so a step renders without the frame's
- * stylesheet, which styles the `plan-briefing-*` classes.
+ * Its label follows the pick instantly: arrowing through the radios would
+ * replay any swap animation on every key. A label too long for a narrow
+ * phone grows the pill a line rather than spilling out of it. Kept apart
+ * from the frame so a step renders without the frame's stylesheet, which
+ * styles the `plan-briefing-*` classes.
  */
 export function PlanBriefingCta({
   label,
   disabled = false,
   onClick,
 }: {
-  label: string;
+  label: ReactNode;
   disabled?: boolean;
   onClick: () => void;
 }) {
-  const swapped = useSwapped(label);
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="plan-briefing-cta plan-briefing-press h-12 w-full rounded-full bg-ink text-base font-medium text-dialog outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60"
+      className="plan-briefing-cta plan-briefing-press flex min-h-12 w-full items-center justify-center rounded-full bg-ink px-6 py-3 text-base font-medium text-balance text-dialog outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60"
     >
-      <span key={label} className={swapped ? "plan-briefing-label" : undefined}>
-        {label}
-      </span>
+      {label}
     </button>
   );
 }

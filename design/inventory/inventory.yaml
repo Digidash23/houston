@@ -2508,7 +2508,8 @@ components:
       the meta line and a check circle on the right; the selected row wears
       an ink ring and a filled check. The stored pick, else the busiest, is
       preselected, and the full-width pill names what it does ("Keep {org}
-      free"), its label swapping in when the pick changes. A Plus or comp
+      free"), its label changing at once as the pick moves, a long org name
+      truncated so the pill stays one line. A Plus or comp
       payer sees a two-step progress bar, presses Next, then picks the org the
       subscription pays for ("Pay for {org}"): each row's seat price from
       payerTotals, the free pick still listed in place but disabled, the
