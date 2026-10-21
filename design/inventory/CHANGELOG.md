@@ -5,10 +5,11 @@ Every `version` bump in `inventory.yaml` needs a matching entry here (enforced b
 
 ## v137 - 2026-10-20
 
-Cloud users hear about plans moving to organizations before it happens, in
-a modal when the app opens that wears the launch announcement's dark
-briefing frame (full height on phones). It names the day the change starts
-and the price of the other organizations. An owner of several
+Cloud users hear that teams are out of beta before plans move to
+organizations, in a modal when the app opens that wears the launch
+announcement's dark briefing frame (full height on phones). It thanks them,
+names the day personal and team spaces start to work the same and that each
+account keeps one free organization, with no price. An owner of several
 organizations sees it on every app open until they choose which one stays
 free; Maybe later hides it until the next open, and the primary action
 opens the picker in the same frame, listing their organizations busiest

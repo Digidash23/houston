@@ -2468,8 +2468,8 @@ components:
 
   - id: billing-change-modal
     title: Pricing change modal
-    purpose: Tell a cloud user, when the app opens, that plans move to organizations, and let an owner choose which org stays free.
-    anatomy: [title, date-and-price-sentence, primary-pill, maybe-later-action, close-button, picker-step]
+    purpose: Tell a cloud user, when the app opens, that teams are out of beta and plans move to organizations, and let an owner choose which org stays free.
+    anatomy: [title, thanks-and-date-sentence, primary-pill, maybe-later-action, close-button, picker-step]
     states: [hidden, pick, pick-payer, single-org, member, waiting-behind-plan-dialog]
     variants: [phone-full-height-sheet, desktop-dialog]
     behavior: >-
@@ -2478,12 +2478,13 @@ components:
       pick; Maybe later and the X hide it for that session only, and the
       primary action opens the free-org picker in the same frame (a Plus or
       comp payer also reads that the subscription moves). A single-org owner
-      reads that the org stays free, and a member of someone else's org reads
-      that its owner chooses; each sees it once, and Got it or the X stores
+      reads that they can invite people to it and it stays free (or that the
+      subscription pays for it), and a member of someone else's org reads
+      that personal and team spaces work the same; each sees it once, and Got it or the X stores
       the dismissal so no device shows it again. A stored pick, the cutover or
       an applied change shows nothing. It never stacks on a plan dialog and
       waits until that one is gone. The date is the server's cutoverAt in the
-      reader's language. Cloud only. It wears the launch announcement's dark
+      reader's language; the intro names no price (the payer step does). Cloud only. It wears the launch announcement's dark
       briefing frame: centered on desktop, full height on phones with the
       actions at the bottom.
     a11y: A titled, described dialog; the X is labelled; every action is a visible button, never hover-only; only the person closes it.

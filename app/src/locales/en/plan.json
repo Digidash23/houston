@@ -132,12 +132,12 @@
   },
   "choice": {
     "notice": {
-      "title": "Plans are moving to organizations",
-      "pick": "From {{date}}, one of your organizations stays free. The others are {{price}} per member a month.",
-      "pickPayer": "From {{date}}, one of your organizations stays free. The others are {{price}} per member a month. Your subscription moves to the organization you pick.",
-      "singleOrg": "From {{date}}, {{name}} stays free. Upgrade anytime for {{price}} per member a month.",
-      "singleOrgPayer": "From {{date}}, your subscription pays for {{name}}.",
-      "member": "From {{date}}, plans work per organization. Your organization's owner chooses the plan.",
+      "title": "Teams are out of beta",
+      "pick": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep.",
+      "pickPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep. Your subscription moves to the organization you choose.",
+      "singleOrg": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to {{name}}. It stays free.",
+      "singleOrgPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to {{name}}. Your subscription pays for it.",
+      "member": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same.",
       "choose": "Choose my free organization",
       "gotIt": "Got it",
       "close": "Close"

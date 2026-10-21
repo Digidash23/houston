@@ -49,7 +49,7 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
     timeout: 15_000,
   });
   await expect(modal).toContainText(
-    "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month.",
+    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep.",
   );
   await expect(modal).not.toContainText(/\d+ messages a week/);
   await modal.getByRole("button", { name: CHOOSE }).click();
@@ -90,7 +90,7 @@ test("a Plus payer reads that the subscription moves, then picks both orgs", asy
 
   const modal = choiceModal(page);
   await expect(modal).toContainText(
-    "Your subscription moves to the organization you pick.",
+    "Your subscription moves to the organization you choose.",
     { timeout: 15_000 },
   );
   await modal.getByRole("button", { name: CHOOSE }).click();
@@ -144,7 +144,7 @@ test("a refusal that leaves one owned org swaps the picker for the notice", asyn
   await expect(page.getByText("You don't own that organization")).toBeVisible();
 
   await expect(modal).toContainText(
-    "From Friday, October 23, La Fila stays free. Upgrade anytime for $15 per member a month.",
+    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. It stays free.",
   );
   await expect(modal.getByRole("radio")).toHaveCount(0);
   await expect(modal.getByRole("button", { name: "Got it" })).toBeVisible();
@@ -209,7 +209,7 @@ test("a member reads it once: Got it dismisses it on every device", async ({
   await page.goto("/");
   const modal = choiceModal(page);
   await expect(modal).toContainText(
-    "From Friday, October 23, plans work per organization. Your organization's owner chooses the plan.",
+    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same.",
     { timeout: 15_000 },
   );
   await expect(modal.getByRole("button", { name: "Maybe later" })).toHaveCount(
@@ -257,7 +257,7 @@ test("a single-org owner reads that it stays free; the X dismisses it too", asyn
   await page.goto("/");
   const modal = choiceModal(page);
   await expect(modal).toContainText(
-    "From Friday, October 23, La Fila stays free. Upgrade anytime for $15 per member a month.",
+    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. It stays free.",
     { timeout: 15_000 },
   );
   await modal.getByRole("button", { name: "Close" }).click();

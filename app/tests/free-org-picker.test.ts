@@ -161,35 +161,35 @@ const SINGLE = {
 };
 
 describe("the announcement copy", () => {
-  it("asks an owner to choose, with the date and the price", () => {
+  it("asks an owner to choose, with the date and no price", () => {
     strictEqual(
       noticeText({ ...CHOICE, payer: null }),
-      "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep.",
     );
   });
 
   it("tells a payer the subscription moves to the org they pick", () => {
     strictEqual(
       noticeText(CHOICE),
-      "From Friday, October 23, one of your organizations stays free. The others are $15 per member a month. Your subscription moves to the organization you pick.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep. Your subscription moves to the organization you choose.",
     );
   });
 
   it("names the one org that stays free, or that the subscription pays for", () => {
     strictEqual(
       noticeText(SINGLE),
-      "From Friday, October 23, La Fila stays free. Upgrade anytime for $15 per member a month.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. It stays free.",
     );
     strictEqual(
       noticeText({ ...SINGLE, payer: "plus" }),
-      "From Friday, October 23, your subscription pays for La Fila.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. Your subscription pays for it.",
     );
   });
 
-  it("tells a member in someone else's org that the owner chooses", () => {
+  it("tells a member in someone else's org that spaces work the same", () => {
     strictEqual(
       noticeText({ ...SINGLE, orgs: [] }),
-      "From Friday, October 23, plans work per organization. Your organization's owner chooses the plan.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same.",
     );
   });
 
@@ -205,7 +205,7 @@ describe("the announcement copy", () => {
     try {
       strictEqual(
         noticeText({ ...CHOICE, payer: null }),
-        "Desde el viernes, 23 de octubre, una de tus organizaciones sigue gratis. Las demás cuestan 15\u00a0US$ por miembro al mes.",
+        "Gracias por ayudarnos a darle forma a cómo funcionan los equipos en Houston. Desde el viernes, 23 de octubre, los espacios personales y de equipo funcionan igual, así que puedes invitar personas a cualquiera de ellos. Cada cuenta conserva una organización gratis. Si creaste varias solo para probar, elige la que quieres mantener.",
       );
     } finally {
       await i18next.changeLanguage("en");

@@ -166,8 +166,3 @@ export function payerTotals(
     seat: formatPlanAmount(ORG_SEAT_PRICE_CENTS, CURRENCY, locale),
   };
 }
-
-/** One seat on a paid org, for the announcement's price. */
-export function orgSeatPrice(locale?: string): string {
-  return formatPlanAmount(ORG_SEAT_PRICE_CENTS, CURRENCY, locale);
-}

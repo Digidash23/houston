@@ -132,12 +132,12 @@
   },
   "choice": {
     "notice": {
-      "title": "Os planos estão passando para as organizações",
-      "pick": "A partir de {{date}}, uma das suas organizações continua grátis. As outras custam {{price}} por membro por mês.",
-      "pickPayer": "A partir de {{date}}, uma das suas organizações continua grátis. As outras custam {{price}} por membro por mês. Sua assinatura passa para a organização que você escolher.",
-      "singleOrg": "A partir de {{date}}, {{name}} continua grátis. Faça upgrade quando quiser por {{price}} por membro por mês.",
-      "singleOrgPayer": "A partir de {{date}}, sua assinatura paga {{name}}.",
-      "member": "A partir de {{date}}, os planos são por organização. O proprietário da sua organização escolhe o plano.",
+      "title": "As equipes saíram do beta",
+      "pick": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para qualquer um deles. Cada conta mantém uma organização grátis. Se você criou várias só para testar, escolha a que quer manter.",
+      "pickPayer": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para qualquer um deles. Cada conta mantém uma organização grátis. Se você criou várias só para testar, escolha a que quer manter. Sua assinatura passa para a organização que você escolher.",
+      "singleOrg": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para {{name}}. Ela continua grátis.",
+      "singleOrgPayer": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para {{name}}. Sua assinatura paga por ela.",
+      "member": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito.",
       "choose": "Escolher minha organização grátis",
       "gotIt": "Entendi",
       "close": "Fechar"

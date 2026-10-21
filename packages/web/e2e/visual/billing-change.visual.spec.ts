@@ -68,7 +68,7 @@ for (const width of ["desktop", "phone"] as const) {
   test(`pricing change modal, Spanish intro — ${width}`, async ({ page }) => {
     await seedLocale(page, "es");
     const modal = await boot(page, width, ownerChoice());
-    await expect(modal).toContainText("Los planes pasan a las organizaciones");
+    await expect(modal).toContainText("Los equipos salieron de beta");
     await shoot(page, `billing-change-modal-intro-es-${width}.png`);
   });
 }
@@ -84,12 +84,12 @@ test("pricing change modal, payer step — desktop", async ({ page }) => {
 
 test("pricing change modal, member — desktop", async ({ page }) => {
   const modal = await boot(page, "desktop", memberChoice());
-  await expect(modal).toContainText("Your organization's owner chooses");
+  await expect(modal).toContainText("personal and team spaces work the same.");
   await shoot(page, "billing-change-modal-member-desktop.png");
 });
 
 test("pricing change modal, single org — desktop", async ({ page }) => {
   const modal = await boot(page, "desktop", singleOrgChoice());
-  await expect(modal).toContainText("La Fila stays free.");
+  await expect(modal).toContainText("invite people to La Fila. It stays free.");
   await shoot(page, "billing-change-modal-single-org-desktop.png");
 });

@@ -121,7 +121,7 @@ export const choiceModal = (page: Page): Locator =>
 export const settingsPicker = (page: Page): Locator =>
   page.getByTestId("free-org-picker");
 
-export const MODAL_TITLE = "Plans are moving to organizations";
+export const MODAL_TITLE = "Teams are out of beta";
 export const CHOOSE = "Choose my free organization";
 
 /** A single-org owner: the one org they own stays free. */
