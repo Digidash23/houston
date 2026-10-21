@@ -22,7 +22,7 @@ const STATUS = {
   needs_plan: {
     label: "choice.done.status.needs_plan",
     className:
-      "text-ink-muted outline outline-1 outline-offset-[-1px] outline-line",
+      "text-ink-muted outline outline-1 -outline-offset-1 outline-line",
   },
 } as const satisfies Record<
   ChoiceOrgStatus,

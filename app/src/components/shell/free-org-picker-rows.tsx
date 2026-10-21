@@ -32,9 +32,8 @@ export function OrgRadio(props: OrgRadioProps) {
   return (
     <label
       className={cn(
-        "plan-briefing-row grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl bg-chip py-3 pl-3 pr-3.5 outline outline-1 outline-offset-[-1px] outline-line has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-dialog",
-        props.checked &&
-          "bg-hover outline-[1.5px] outline-offset-[-1.5px] outline-ink",
+        "plan-briefing-row grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl bg-chip py-3 pl-3 pr-3.5 outline outline-1 -outline-offset-1 outline-line has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-dialog",
+        props.checked && "bg-hover outline-2 -outline-offset-2 outline-ink",
         props.disabled && "cursor-default opacity-45",
       )}
     >
@@ -63,7 +62,7 @@ export function OrgRadio(props: OrgRadioProps) {
         aria-hidden
         data-checked={props.checked || undefined}
         className={cn(
-          "plan-briefing-tick grid size-5.5 place-items-center rounded-full outline outline-[1.5px] outline-offset-[-1.5px] outline-line-input",
+          "plan-briefing-tick grid size-5.5 place-items-center rounded-full outline outline-2 -outline-offset-2 outline-line-input",
           props.checked && "bg-ink outline-0",
         )}
       >
