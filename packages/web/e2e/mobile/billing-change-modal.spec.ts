@@ -11,11 +11,11 @@ import { expect, test } from "../support/fixtures";
 
 /**
  * On a phone the pricing-change modal is a full-height sheet, like the launch
- * announcement: the actions sit at the bottom, and the picker opens in the
- * same sheet without a horizontal scroll.
+ * announcement: the actions sit at the bottom, and the picker and its
+ * success step open in the same sheet without a horizontal scroll.
  */
 
-test("the modal fills the phone, and the picker opens in the same sheet", async ({
+test("the modal fills the phone, and the picker and its success step open in the same sheet", async ({
   page,
 }) => {
   await installChoiceClock(page);
@@ -50,4 +50,18 @@ test("the modal fills the phone, and the picker opens in the same sheet", async 
   expect(picking && Math.round(picking.y + picking.height)).toBe(
     viewport?.height,
   );
+
+  await modal.getByRole("button", { name: "Keep La Fila free" }).tap();
+  const done = modal.getByRole("button", { name: "Done" });
+  await expect(done).toBeVisible();
+  await expect(modal).toContainText("La Fila stays free");
+  const doneBox = await done.boundingBox();
+  expect(doneBox && viewport && doneBox.y > viewport.height / 2).toBe(true);
+  await done.tap();
+  await expect(modal).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("main")).toBeVisible();
+  await page.clock.runFor(3_000);
+  await expect(choiceModal(page)).toBeHidden();
 });

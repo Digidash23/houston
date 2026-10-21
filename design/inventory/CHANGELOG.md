@@ -16,8 +16,11 @@ opens the picker in the same frame, listing their organizations busiest
 first with members and messages from the last 30 days and the busiest
 tagged and preselected. A Plus subscriber then picks the organization the
 subscription pays for and sees its monthly total and when extra members
-start to bill. A single-organization owner and a member of someone else's
-organization read it once. It never stacks on a plan dialog. Billing in
+start to bill. A saved choice ends on a success step in the same frame: a
+check, which organization stays free, when the others need a plan (or which
+one the subscription pays for), that it can change in Settings, and Done.
+A single-organization owner and a member of someone else's organization read
+it once. It never stacks on a plan dialog. Billing in
 Settings keeps a way back to the choice while it is open.
 
 ## v136 - 2026-10-16

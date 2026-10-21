@@ -168,6 +168,13 @@
       "back": "Back",
       "use": "Use my plan for {{name}}"
     },
+    "done": {
+      "title": "{{name}} stays free",
+      "othersNeedPlan": "Your other organizations need a plan from {{date}}.",
+      "payer": "Your subscription pays for {{paid}} from {{date}}.",
+      "change": "You can change this in Settings.",
+      "close": "Done"
+    },
     "refused": {
       "not_owner": {
         "title": "You don't own that organization",

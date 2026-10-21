@@ -1,7 +1,9 @@
 import {
+  CLOSED_CHOICE_PICKER,
   canChangeChoice,
   formatCutoverDate,
   formatCutoverDay,
+  openChoicePicker,
 } from "@houston/sdk";
 import { Button, Card } from "@houston-ai/core";
 import { useRef, useState } from "react";
@@ -19,7 +21,7 @@ export function FreeOrgChoiceRow() {
   const { t, i18n } = useTranslation("plan");
   const { data: choice } = useBillingChoice();
   const orgName = useOrgName();
-  const [open, setOpen] = useState(false);
+  const [frame, setFrame] = useState(CLOSED_CHOICE_PICKER);
   const opener = useRef<HTMLButtonElement>(null);
   const now = useChoiceNow(choice);
   if (!canChangeChoice(choice, now)) return null;
@@ -44,15 +46,15 @@ export function FreeOrgChoiceRow() {
           ref={opener}
           variant="outline"
           className="self-start md:self-auto"
-          onClick={() => setOpen(true)}
+          onClick={() => setFrame(openChoicePicker())}
         >
           {free ? t("choice.settings.change") : t("choice.settings.choose")}
         </Button>
       </div>
       <FreeOrgPicker
         choice={choice}
-        open={open}
-        onOpenChange={setOpen}
+        frame={frame}
+        setFrame={setFrame}
         returnFocus={() => opener.current?.focus()}
       />
     </Card>

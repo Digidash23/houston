@@ -2469,8 +2469,8 @@ components:
   - id: billing-change-modal
     title: Pricing change modal
     purpose: Tell a cloud user, when the app opens, that teams are out of beta and plans move to organizations, and let an owner choose which org stays free.
-    anatomy: [title, thanks-and-date-sentence, primary-pill, maybe-later-action, close-button, picker-step]
-    states: [hidden, pick, pick-payer, single-org, member, waiting-behind-plan-dialog]
+    anatomy: [title, thanks-and-date-sentence, primary-pill, maybe-later-action, close-button, picker-step, success-step]
+    states: [hidden, pick, pick-payer, single-org, member, waiting-behind-plan-dialog, done]
     variants: [phone-full-height-sheet, desktop-dialog]
     behavior: >-
       SDK choiceModal decides from the account's billing choice. An owner of
@@ -2493,8 +2493,8 @@ components:
   - id: free-org-picker
     title: Free organization picker
     purpose: Let an owner choose which org stays free and, for a payer, which org the subscription pays for.
-    anatomy: [step-label, title, body, org-radio-cards, most-active-tag, member-and-activity-meta, monthly-total, free-org-row, grace-note, back-action, primary-action, change-until-hint, close-button]
-    states: [free-step, paid-step, saving, refused]
+    anatomy: [step-label, title, body, org-radio-cards, most-active-tag, member-and-activity-meta, monthly-total, free-org-row, grace-note, back-action, primary-action, change-until-hint, close-button, success-check, success-title, success-body, settings-hint, done-pill]
+    states: [free-step, paid-step, saving, refused, done]
     variants: [desktop-dialog, phone-full-height-sheet]
     behavior: >-
       SDK pickerRows lists owned orgs busiest first (30-day messages, then
@@ -2503,8 +2503,14 @@ components:
       second step in the same frame with each org's monthly total from
       payerTotals and the free pick shown as a disabled row. Save calls
       setChoice; not_owner, not_payer and same_org come back as outcomes with
-      their own copy. It opens as the pricing-change modal's second step, and
-      the Settings plan screen keeps a row that opens it on its own, in the
-      same briefing frame, while the pick is open.
+      their own copy. A stored pick moves to a success step in the same frame
+      (SDK finishPicking / choicePickerSaved; a refusal never does): a check
+      that scales in, "{free org} stays free", one line saying the other orgs
+      need a plan from the cutover (a payer reads which org the subscription
+      pays for), that it can change in Settings, and a Done pill. Done, the X,
+      Escape and a click outside close it; the stored pick then keeps the
+      modal from showing again. It opens as the pricing-change modal's second
+      step, and the Settings plan screen keeps a row that opens it on its own,
+      in the same briefing frame, while the pick is open.
     a11y: Each step is a radio group of full-row labelled radios with a visible focus ring; the frame is a titled dialog with a labelled close button.
     since: 137

@@ -1,7 +1,7 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { before, describe, it } from "node:test";
 import type { BillingChoice } from "@houston/engine-adapter";
-import { choiceNotice } from "@houston/sdk";
+import { choiceDone, choiceNotice } from "@houston/sdk";
 import { JSDOM } from "jsdom";
 import type { ReactElement } from "react";
 import plan from "../src/locales/en/plan.json" with { type: "json" };
@@ -11,8 +11,10 @@ import planPt from "../src/locales/pt/plan.json" with { type: "json" };
 let h: typeof import("react").createElement;
 let render: (element: ReactElement) => string;
 let steps: typeof import("../src/components/shell/free-org-picker-steps.tsx");
+let done: typeof import("../src/components/shell/free-org-picker-done.tsx");
 let copy: typeof import("../src/components/shell/billing-change-copy.ts");
 let i18next: typeof import("i18next").default;
+let Dialog: typeof import("@houston-ai/core").Dialog;
 
 before(async () => {
   const React = await import("react");
@@ -28,6 +30,8 @@ before(async () => {
     resources: { en: { plan }, es: { plan: planEs } },
   });
   steps = await import("../src/components/shell/free-org-picker-steps.tsx");
+  done = await import("../src/components/shell/free-org-picker-done.tsx");
+  ({ Dialog } = await import("@houston-ai/core"));
   copy = await import("../src/components/shell/billing-change-copy.ts");
 });
 
@@ -130,6 +134,62 @@ describe("the free-org picker", () => {
       (b) => b.textContent,
     );
     deepStrictEqual(buttons, ["Back", "Use my plan for Innova"]);
+  });
+});
+
+/** The success step's title, lines and button for a stored choice. */
+function doneText(stored: BillingChoice) {
+  const step = choiceDone(stored, "en");
+  ok(step, "a stored pick has a success step");
+  const page = new JSDOM(
+    render(
+      h(
+        Dialog,
+        { open: true },
+        h(done.DoneStep, { done: step, onClose: noop }),
+      ),
+    ),
+  ).window.document;
+  return {
+    title: page.querySelector("h2")?.textContent,
+    lines: [...page.querySelectorAll("p > span")].map(
+      (line) => line.textContent,
+    ),
+    buttons: [...page.querySelectorAll("button")].map((b) => b.textContent),
+  };
+}
+
+describe("the success step", () => {
+  it("tells a non-payer which org stays free and when the others need a plan", () => {
+    deepStrictEqual(
+      doneText({ ...CHOICE, payer: null, freeOrgSlug: "1111111111111111" }),
+      {
+        title: "La Fila stays free",
+        lines: [
+          "Your other organizations need a plan from Friday, October 23.",
+          "You can change this in Settings.",
+        ],
+        buttons: ["Done"],
+      },
+    );
+  });
+
+  it("tells a payer which org the subscription pays for", () => {
+    deepStrictEqual(
+      doneText({
+        ...CHOICE,
+        freeOrgSlug: "3333333333333333",
+        paidOrgSlug: "2222222222222222",
+      }),
+      {
+        title: "Personal stays free",
+        lines: [
+          "Your subscription pays for Innova from Friday, October 23.",
+          "You can change this in Settings.",
+        ],
+        buttons: ["Done"],
+      },
+    );
   });
 });
 

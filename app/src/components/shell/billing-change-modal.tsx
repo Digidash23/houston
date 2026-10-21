@@ -3,6 +3,8 @@ import type { BillingChoice } from "@houston/engine-adapter";
 import {
   CLOSED_CHOICE_FRAME,
   choiceModal,
+  closeChoiceFrame,
+  finishPicking,
   nextChoiceModalFrame,
   type ShownChoiceModal,
   startPicking,
@@ -17,6 +19,7 @@ import {
 import { useChoiceNow } from "../../hooks/use-choice-now";
 import { useNoticeBody } from "./billing-change-copy";
 import { PickerBody } from "./free-org-picker";
+import { DoneStep } from "./free-org-picker-done";
 import { PlanAnnouncementCta } from "./plan-announcement-cta";
 import {
   PlanBriefingFrame,
@@ -28,8 +31,8 @@ import {
  * Every rule about whether it shows, what closing it does and when the picker
  * replaces the intro lives in the SDK ({@link choiceModal},
  * {@link nextChoiceModalFrame}); this holds the session's close and the frame,
- * and renders. An owner who has to pick moves from the intro to the picker in
- * the same frame.
+ * and renders. An owner who has to pick moves from the intro to the picker,
+ * then to the success step, in the same frame.
  */
 export function BillingChangeModal({
   otherDialogOpen,
@@ -51,10 +54,11 @@ export function BillingChangeModal({
   // Derived from the last render's frame; React re-renders before painting.
   const frame = nextChoiceModalFrame(stored, modal);
   if (frame !== stored) setFrame(frame);
-  const { shown, picking } = frame;
+  const { shown, phase } = frame;
   if (!choice || !shown) return null;
   const close = () => {
     setClosed(true);
+    setFrame(closeChoiceFrame);
     if (shown.close === "everywhere") dismiss.mutate();
   };
   return (
@@ -62,14 +66,25 @@ export function BillingChangeModal({
       open={frame.open}
       onDismiss={close}
       closeLabel={
-        shown.close === "session" ? t("maybeLater") : t("choice.notice.close")
+        shown.close === "session" && phase.step !== "done"
+          ? t("maybeLater")
+          : t("choice.notice.close")
       }
       width={layout["choice-dialog-width"]}
-      described={!picking}
+      described={phase.step !== "picking"}
       testId="billing-change-modal"
     >
-      {picking ? (
-        <PickerBody choice={choice} onDone={close} />
+      {phase.step === "done" ? (
+        <DoneStep done={phase.done} onClose={close} />
+      ) : phase.step === "picking" ? (
+        <PickerBody
+          choice={choice}
+          onAnswer={(outcome) =>
+            setFrame((current) =>
+              finishPicking(current, outcome, i18n.language),
+            )
+          }
+        />
       ) : (
         <Intro
           shown={shown}

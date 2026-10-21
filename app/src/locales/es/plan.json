@@ -168,6 +168,13 @@
       "back": "Atrás",
       "use": "Usar mi plan para {{name}}"
     },
+    "done": {
+      "title": "{{name}} sigue gratis",
+      "othersNeedPlan": "Tus otras organizaciones necesitan un plan desde el {{date}}.",
+      "payer": "Tu suscripción paga por {{paid}} desde el {{date}}.",
+      "change": "Puedes cambiarlo en Configuración.",
+      "close": "Listo"
+    },
     "refused": {
       "not_owner": {
         "title": "Esa organización no es tuya",

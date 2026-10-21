@@ -1,9 +1,9 @@
 /**
  * Visual-regression baselines for the pricing-change modal: an owner's intro,
- * the picker and a payer's second step in the same frame, the read-only
- * member and single-org notices, and the Spanish intro, at desktop and phone
- * width. The page clock is pinned before the cutover and every value on
- * screen comes from the fixture. The modal pins its own dark theme; the shell
+ * the picker, a payer's second step and the success step in the same frame,
+ * the read-only member and single-org notices, and the Spanish intro, at
+ * desktop and phone width. The page clock is pinned before the cutover and
+ * every value on screen comes from the fixture. The modal pins its own dark theme; the shell
  * behind it is shot light.
  */
 import type { BillingChoice } from "@houston/wire-types";
@@ -63,6 +63,15 @@ for (const width of ["desktop", "phone"] as const) {
     await modal.getByRole("button", { name: CHOOSE }).click();
     await expect(modal.getByRole("radio").first()).toBeVisible();
     await shoot(page, `billing-change-modal-picker-${width}.png`);
+  });
+
+  test(`pricing change modal, success step — ${width}`, async ({ page }) => {
+    const modal = await boot(page, width, ownerChoice());
+    await modal.getByRole("button", { name: CHOOSE }).click();
+    await modal.getByRole("button", { name: "Keep La Fila free" }).click();
+    await expect(modal.getByRole("button", { name: "Done" })).toBeVisible();
+    await expect(modal).toContainText("La Fila stays free");
+    await shoot(page, `billing-change-modal-done-${width}.png`);
   });
 
   test(`pricing change modal, Spanish intro — ${width}`, async ({ page }) => {

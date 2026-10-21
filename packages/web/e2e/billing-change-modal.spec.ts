@@ -68,10 +68,25 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
 
   await modal.getByText("Innova", { exact: true }).click();
   await modal.getByRole("button", { name: "Keep Innova free" }).click();
-  await expect(modal).toBeHidden();
+
+  // The same frame confirms the pick, and survives the refetch behind it.
+  await expect(
+    page.getByRole("dialog", { name: "Innova stays free" }),
+  ).toBeVisible();
+  await expect(modal).toContainText(
+    "Your other organizations need a plan from Friday, October 23.",
+  );
+  await expect(modal).toContainText("You can change this in Settings.");
+  await expect(modal.getByRole("radio")).toHaveCount(0);
   expect((await choiceCalls()).filter((c) => c.route === "set")).toEqual([
     { route: "set", body: { freeOrgSlug: INNOVA.slug } },
   ]);
+  await page.clock.runFor(3_000);
+  await expect(modal).toBeVisible();
+  await modal.getByRole("button", { name: "Done" }).click();
+  await expect(modal).toBeHidden();
+  await page.clock.runFor(3_000);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await page.reload();
   await expect(page.getByRole("main")).toBeVisible();
@@ -107,13 +122,42 @@ test("a Plus payer reads that the subscription moves, then picks both orgs", asy
   await expect(modal).toContainText("La FilaStays free");
   await modal.getByRole("button", { name: "Use my plan for Innova" }).click();
 
-  await expect(modal).toBeHidden();
+  await expect(
+    page.getByRole("dialog", { name: "La Fila stays free" }),
+  ).toBeVisible();
+  await expect(modal).toContainText(
+    "Your subscription pays for Innova from Friday, October 23.",
+  );
   expect((await choiceCalls()).filter((c) => c.route === "set")).toEqual([
     {
       route: "set",
       body: { freeOrgSlug: LA_FILA.slug, paidOrgSlug: INNOVA.slug },
     },
   ]);
+  await modal.getByRole("button", { name: "Done" }).click();
+  await expect(modal).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect
+    .poll(async () => (await routes()).filter((r) => r === "get").length)
+    .toBe(2);
+  await expect(choiceModal(page)).toBeHidden();
+});
+
+test("Escape closes the success step like Done", async ({ page }) => {
+  await armCapabilities(SPACES_OWNER_CAPS);
+  await armChoice(ownerChoice());
+  await page.goto("/");
+  const modal = choiceModal(page);
+  await modal.getByRole("button", { name: CHOOSE }).click({ timeout: 15_000 });
+  await modal.getByRole("button", { name: "Keep La Fila free" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "La Fila stays free" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  expect(await routes()).not.toContain("dismiss");
 });
 
 test("a refused pick shows its own copy and keeps the picker open", async ({
@@ -127,6 +171,8 @@ test("a refused pick shows its own copy and keeps the picker open", async ({
   await modal.getByRole("button", { name: "Keep La Fila free" }).click();
   await expect(page.getByText("You don't own that organization")).toBeVisible();
   await expect(modal.getByRole("radio")).toHaveCount(3);
+  await expect(modal.getByRole("button", { name: "Done" })).toHaveCount(0);
+  await expect(modal).not.toContainText("You can change this in Settings.");
 });
 
 test("a refusal that leaves one owned org swaps the picker for the notice", async ({
@@ -186,6 +232,52 @@ test("Maybe later hides it for this session only, and Billing still opens the pi
     timeout: 15_000,
   });
   expect(await routes()).not.toContain("dismiss");
+});
+
+test("a pick from Billing ends on the success step, and the modal stays gone", async ({
+  page,
+}) => {
+  await armCapabilities({ ...SPACES_OWNER_CAPS, plan: true });
+  await armPlan({ summary: freePlan() });
+  await armChoice(ownerChoice());
+  await page.goto("/");
+  await choiceModal(page)
+    .getByRole("button", { name: "Maybe later" })
+    .first()
+    .click({ timeout: 15_000 });
+
+  await openBilling(page);
+  await billingScreen(page).getByRole("button", { name: "Choose" }).click();
+  const picker = settingsPicker(page);
+  await picker.getByText("Innova", { exact: true }).click();
+  await picker.getByRole("button", { name: "Keep Innova free" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Innova stays free" }),
+  ).toBeVisible();
+  await expect(picker).toContainText(
+    "Your other organizations need a plan from Friday, October 23.",
+  );
+  await picker.getByRole("button", { name: "Done" }).click();
+  await expect(picker).toBeHidden();
+  await expect(billingScreen(page)).toContainText(
+    "Innova stays free from October 23.",
+  );
+  await expect(
+    billingScreen(page).getByRole("button", { name: "Change" }),
+  ).toBeFocused();
+
+  // Reopening starts on the picker again, on the stored pick.
+  await billingScreen(page).getByRole("button", { name: "Change" }).click();
+  await expect(picker.getByRole("radio", { name: /Innova/ })).toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect
+    .poll(async () => (await routes()).filter((r) => r === "get").length)
+    .toBe(2);
+  await expect(choiceModal(page)).toBeHidden();
 });
 
 test("closing with the X is also Maybe later for an owner who has to pick", async ({

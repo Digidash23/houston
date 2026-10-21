@@ -1,7 +1,14 @@
 import { layout } from "@houston/design-tokens";
-import type { BillingChoice, BillingChoicePick } from "@houston/engine-adapter";
+import type {
+  BillingChoice,
+  BillingChoicePick,
+  BillingChoiceSave,
+} from "@houston/engine-adapter";
 import {
+  type ChoicePickerFrame,
+  choicePickerSaved,
   choosesPaidOrg,
+  closeChoicePicker,
   defaultFreeOrg,
   defaultPaidOrg,
   type PickerState,
@@ -11,6 +18,7 @@ import { DialogTitle } from "@houston-ai/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSetBillingChoice } from "../../hooks/queries/use-billing-choice";
+import { DoneStep } from "./free-org-picker-done";
 import { FreeStep, PaidStep } from "./free-org-picker-steps";
 import { PlanBriefingFrame } from "./plan-briefing-frame";
 
@@ -22,14 +30,15 @@ const TITLE_CLASS =
  * pick (else the busiest org). A Plus or comp payer gets a second step in the
  * same frame for the org their subscription pays for. Renders inside a
  * {@link PlanBriefingFrame}: the Settings entry's own, or the pricing-change
- * modal's after its intro.
+ * modal's after its intro. Every save's answer goes to `onAnswer`, whose SDK
+ * frame moves a stored pick to the success step.
  */
 export function PickerBody({
   choice,
-  onDone,
+  onAnswer,
 }: {
   choice: BillingChoice;
-  onDone: () => void;
+  onAnswer: (outcome: BillingChoiceSave) => void;
 }) {
   const save = useSetBillingChoice();
   const payer = choosesPaidOrg(choice);
@@ -52,8 +61,8 @@ export function PickerBody({
   const submit = (pick: BillingChoicePick) =>
     save.mutate(pick, {
       onSuccess: (outcome) => {
-        if (outcome.kind === "saved") onDone();
         if (outcome.kind === "not_payer") update({ step: "free", paid: null });
+        onAnswer(outcome);
       },
     });
 
@@ -96,34 +105,49 @@ export function PickerBody({
   );
 }
 
-/** The picker on its own, opened from Settings > Billing. */
+/**
+ * The picker on its own, opened from Settings > Billing, then its success
+ * step until the person closes it. The row that opens it holds the frame.
+ */
 export function FreeOrgPicker({
   choice,
-  open,
-  onOpenChange,
+  frame,
+  setFrame,
   returnFocus,
 }: {
   choice: BillingChoice;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  frame: ChoicePickerFrame;
+  setFrame: (next: (frame: ChoicePickerFrame) => ChoicePickerFrame) => void;
   /** Where focus lands on close: the frame has no trigger of its own. */
   returnFocus: () => void;
 }) {
-  const { t } = useTranslation("plan");
+  const { t, i18n } = useTranslation("plan");
+  const close = () => setFrame(closeChoicePicker);
   return (
     <PlanBriefingFrame
-      open={open}
-      onDismiss={() => onOpenChange(false)}
+      open={frame.open}
+      onDismiss={close}
       closeLabel={t("choice.picker.close")}
       width={layout["choice-dialog-width"]}
-      described={false}
+      described={frame.done !== null}
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         returnFocus();
       }}
       testId="free-org-picker"
     >
-      <PickerBody choice={choice} onDone={() => onOpenChange(false)} />
+      {frame.done ? (
+        <DoneStep done={frame.done} onClose={close} />
+      ) : (
+        <PickerBody
+          choice={choice}
+          onAnswer={(outcome) =>
+            setFrame((current) =>
+              choicePickerSaved(current, outcome, i18n.language),
+            )
+          }
+        />
+      )}
     </PlanBriefingFrame>
   );
 }
