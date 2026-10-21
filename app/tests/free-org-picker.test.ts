@@ -258,14 +258,14 @@ describe("the announcement copy", () => {
   it("asks an owner to choose, with the date and no price", () => {
     strictEqual(
       noticeText({ ...CHOICE, payer: null }),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free.",
     );
   });
 
   it("tells a payer the subscription moves to the org they pick", () => {
     strictEqual(
       noticeText(CHOICE),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep. Your subscription moves to the organization you choose.",
+      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free. Your subscription moves to the organization you choose.",
     );
   });
 
@@ -299,7 +299,7 @@ describe("the announcement copy", () => {
     try {
       strictEqual(
         noticeText({ ...CHOICE, payer: null }),
-        "Gracias por ayudarnos a darle forma a cómo funcionan los equipos en Houston. Desde el viernes, 23 de octubre, los espacios personales y de equipo funcionan igual, así que puedes invitar personas a cualquiera de ellos. Cada cuenta conserva una organización gratis. Si creaste varias solo para probar, elige la que quieres mantener.",
+        "Gracias por ayudarnos a darle forma a cómo funcionan los equipos en Houston. Desde el viernes, 23 de octubre, los espacios personales y de equipo funcionan igual, así que puedes invitar personas a cualquiera de ellos. Cada cuenta conserva una organización gratis. Si creaste varias solo para probar, elige la que quieres mantener gratis.",
       );
     } finally {
       await i18next.changeLanguage("en");

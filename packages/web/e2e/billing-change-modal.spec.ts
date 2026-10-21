@@ -49,7 +49,7 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
     timeout: 15_000,
   });
   await expect(modal).toContainText(
-    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep.",
+    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free.",
   );
   await expect(modal).not.toContainText(/\d+ messages a week/);
   await modal.getByRole("button", { name: CHOOSE }).click();

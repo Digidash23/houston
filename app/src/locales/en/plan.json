@@ -133,8 +133,8 @@
   "choice": {
     "notice": {
       "title": "Teams are out of beta",
-      "pick": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep.",
-      "pickPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep. Your subscription moves to the organization you choose.",
+      "pick": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free.",
+      "pickPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free. Your subscription moves to the organization you choose.",
       "singleOrg": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to {{name}}. It stays free.",
       "singleOrgPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to {{name}}. Your subscription pays for it.",
       "member": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same.",
