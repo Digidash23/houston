@@ -31,7 +31,10 @@ export function BillingChangeIntro({
         <Calendar aria-hidden className="size-3.5 text-ink-muted" />
         {t("choice.notice.from", { date: shown.notice.date })}
       </p>
-      <DialogTitle className="mb-2 pr-8 text-balance text-2xl font-semibold leading-tight tracking-tight text-ink md:text-3xl">
+      <DialogTitle
+        tabIndex={-1}
+        className="mb-2 pr-8 text-balance text-2xl font-semibold leading-tight tracking-tight text-ink outline-none md:text-3xl"
+      >
         {t("choice.notice.title")}
       </DialogTitle>
       <DialogDescription className="mb-7 text-base leading-normal text-ink-muted">

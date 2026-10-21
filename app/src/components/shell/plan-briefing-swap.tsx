@@ -1,10 +1,16 @@
 import { cn } from "@houston-ai/core";
-import { type ReactNode, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /**
  * True once `key` has changed since the first render. A briefing animates a
- * step or a label that changes, never the one it opens on: the frame's own
- * entrance already covers that.
+ * step that changes, never the one it opens on: the frame's own entrance
+ * already covers that.
  */
 export function useSwapped(key: string): boolean {
   const [seen, setSeen] = useState({ key, swapped: false });
@@ -28,9 +34,47 @@ export function BriefingStep({
   children: ReactNode;
 }) {
   const swapped = useSwapped(step);
+  const lastInput = useRef<"keyboard" | "pointer">("pointer");
+  return (
+    <StepBody key={step} swapped={swapped} lastInput={lastInput}>
+      {children}
+    </StepBody>
+  );
+}
+
+/**
+ * The control that moved the step unmounts with the old one, so a swapped-in
+ * step takes focus on its checked radio, else its title (`tabIndex={-1}`).
+ * The ring shows only when a key moved it: a click on the autofocused first
+ * action would otherwise hand its keyboard-style focus to the next step. The
+ * step a frame opens on leaves focus to the dialog's own autofocus.
+ */
+function StepBody({
+  swapped,
+  lastInput,
+  children,
+}: {
+  swapped: boolean;
+  lastInput: RefObject<"keyboard" | "pointer">;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!swapped || !ref.current) return;
+    const target =
+      ref.current.querySelector<HTMLElement>('input[type="radio"]:checked') ??
+      ref.current.querySelector<HTMLElement>("h2[tabindex]");
+    target?.focus({ focusVisible: lastInput.current === "keyboard" });
+  }, [swapped, lastInput]);
   return (
     <div
-      key={step}
+      ref={ref}
+      onKeyDownCapture={() => {
+        lastInput.current = "keyboard";
+      }}
+      onPointerDownCapture={() => {
+        lastInput.current = "pointer";
+      }}
       className={cn("flex flex-1 flex-col", swapped && "plan-briefing-step")}
     >
       {children}

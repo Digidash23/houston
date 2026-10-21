@@ -2492,7 +2492,7 @@ components:
       reader's language; the intro names no price (the payer step does). Cloud only. It wears the launch announcement's dark
       briefing frame: centered on desktop, full height on phones with the
       actions at the bottom.
-    a11y: A titled, described dialog; the X is labelled; every action is a visible button, never hover-only; only the person closes it.
+    a11y: A titled, described dialog; the X is labelled; every action is a visible button, never hover-only; only the person closes it. A new step takes focus on its checked radio, else its title.
     since: 137
 
   - id: free-org-picker
@@ -2525,5 +2525,5 @@ components:
       modal from showing again. It opens as the pricing-change modal's second
       step, and the Settings plan screen keeps a row that opens it on its own,
       in the same briefing frame, while the pick is open.
-    a11y: Each step is a radio group of full-row labelled radios with a visible focus ring; the frame is a titled dialog with a labelled close button.
+    a11y: Each step is a radio group of full-row labelled radios with a visible focus ring; the frame is a titled dialog with a labelled close button. A new step takes focus on its checked radio, else its title, and the button keeps the org's whole name as its accessible name.
     since: 137

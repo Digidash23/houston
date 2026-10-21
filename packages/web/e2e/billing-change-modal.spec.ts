@@ -76,6 +76,11 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
     "La FilaMost active1 member · 396 messages in the last 30 days",
   );
   await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeChecked();
+  // A click moves focus to the pick without a keyboard ring.
+  await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeFocused();
+  expect(await focusRing(modal.getByRole("radio", { name: /La Fila/ }))).toBe(
+    false,
+  );
 
   await modal.getByText("Innova", { exact: true }).click();
   await modal.getByRole("button", { name: "Keep Innova free" }).click();
@@ -172,6 +177,95 @@ test("a Plus payer reads that the subscription moves, then picks both orgs", asy
     .poll(async () => (await routes()).filter((r) => r === "get").length)
     .toBe(2);
   await expect(choiceModal(page)).toBeHidden();
+});
+
+const focusRing = (target: Locator) =>
+  target.evaluate((el) => el.matches(":focus-visible"));
+
+/** Every animation the element or anything inside it names, by computed style. */
+const animated = (target: Locator) =>
+  target.evaluate((root) =>
+    [root, ...root.querySelectorAll("*")]
+      .map((el) => getComputedStyle(el).animationName)
+      .filter((name) => name !== "none"),
+  );
+
+test("the keyboard walks an owner from the intro to the success step, focus following each step", async ({
+  page,
+}) => {
+  await armCapabilities(SPACES_OWNER_CAPS);
+  await armChoice(ownerChoice());
+  await page.goto("/");
+  const modal = choiceModal(page);
+  await expect(modal.getByRole("button", { name: CHOOSE })).toBeFocused({
+    timeout: 15_000,
+  });
+  await page.keyboard.press("Enter");
+  await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeFocused();
+  expect(await focusRing(modal.getByRole("radio", { name: /La Fila/ }))).toBe(
+    true,
+  );
+
+  // The action names each pick at once: arrowing never replays an animation.
+  await page.keyboard.press("ArrowDown");
+  await expect(modal.getByRole("radio", { name: /Innova/ })).toBeFocused();
+  const keep = modal.getByRole("button", { name: "Keep Innova free" });
+  await expect(keep).toBeVisible();
+  expect(await animated(keep)).toEqual([]);
+  await page.keyboard.press("ArrowDown");
+  await expect(
+    modal.getByRole("button", { name: "Keep Personal free" }),
+  ).toBeVisible();
+  expect(
+    await animated(modal.getByRole("button", { name: "Keep Personal free" })),
+  ).toEqual([]);
+
+  await page.keyboard.press("Tab");
+  await expect(
+    modal.getByRole("button", { name: "Keep Personal free" }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    modal.getByRole("heading", { name: "Personal stays free" }),
+  ).toBeFocused();
+});
+
+test("the keyboard carries a payer through both steps and back, focus on the pick each time", async ({
+  page,
+}) => {
+  await armCapabilities(SPACES_OWNER_CAPS);
+  await armChoice(payerChoice());
+  await page.goto("/");
+  const modal = choiceModal(page);
+  await expect(modal.getByRole("button", { name: CHOOSE })).toBeFocused({
+    timeout: 15_000,
+  });
+  await page.keyboard.press("Enter");
+  await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(modal.getByRole("button", { name: "Next" })).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  const innova = modal.getByRole("radio", { name: /Innova/ });
+  await expect(innova).toBeChecked();
+  await expect(innova).toBeFocused();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(modal.getByRole("button", { name: "Back" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeFocused();
+
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(innova).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    modal.getByRole("button", { name: "Pay for Innova" }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    modal.getByRole("heading", { name: "La Fila stays free" }),
+  ).toBeFocused();
 });
 
 test("Escape closes the success step like Done", async ({ page }) => {

@@ -24,7 +24,7 @@ import { PlanBriefingFrame } from "./plan-briefing-frame";
 import { BriefingStep } from "./plan-briefing-swap";
 
 const TITLE_CLASS =
-  "mb-5 pr-8 text-2xl font-semibold leading-tight tracking-tight text-balance text-ink";
+  "mb-5 pr-8 text-2xl font-semibold leading-tight tracking-tight text-balance text-ink outline-none";
 
 /**
  * The steps, mounted fresh on every open so each one starts on the stored
@@ -54,7 +54,7 @@ export function PickerBody({
     setState({ step, free, paid, ...patch });
   const title = (text: string, id: string) => (
     // The id rides an inner span: Radix names the frame by the title's own id.
-    <DialogTitle className={TITLE_CLASS}>
+    <DialogTitle tabIndex={-1} className={TITLE_CLASS}>
       <span id={id}>{text}</span>
     </DialogTitle>
   );

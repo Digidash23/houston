@@ -16,7 +16,8 @@ later hides it until the next open, and the primary action opens the
 picker in the same frame, listing their organizations busiest first with
 an avatar, members and messages from the last 30 days, the busiest tagged
 and preselected, and a check on the chosen row. The button says what it
-will do ("Keep La Fila free"). A Plus subscriber follows a two-step
+will do ("Keep La Fila free"), and focus follows each step to the chosen
+row or the step's title. A Plus subscriber follows a two-step
 progress bar and then picks the organization the subscription pays for,
 with each one's price per member and when extra members start to bill. A
 saved choice ends on a success step in the same frame: a check, which

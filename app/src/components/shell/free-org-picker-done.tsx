@@ -54,7 +54,10 @@ export function DoneStep({
       >
         <Check className="size-6.5" strokeWidth={2.5} />
       </span>
-      <DialogTitle className="mb-2 pr-8 text-balance text-2xl font-semibold leading-tight tracking-tight text-ink">
+      <DialogTitle
+        tabIndex={-1}
+        className="mb-2 pr-8 text-balance text-2xl font-semibold leading-tight tracking-tight text-ink outline-none"
+      >
         {t("choice.done.title", { name: orgName(done.free) })}
       </DialogTitle>
       <DialogDescription className="mb-5 text-base leading-normal text-ink-muted">
