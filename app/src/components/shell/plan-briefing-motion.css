@@ -1,0 +1,102 @@
+/*
+ * The free-org briefing's motion. Entrances fill `backwards` only, so once
+ * they end nothing holds a transform and a press can still scale the element.
+ */
+
+/* A changed step clears a short blur as it rises. */
+.plan-briefing-step {
+  animation: briefing-step var(--briefing-duration) var(--briefing-easing) backwards;
+}
+
+/* Points and rows rise in turn. They take clicks while they do. */
+.plan-briefing-stagger > * {
+  animation: briefing-row calc(var(--briefing-duration) * 1.5) var(--briefing-easing) backwards;
+  animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4 * 4);
+}
+.plan-briefing-stagger > :nth-child(1) { animation-delay: calc(var(--briefing-press) / 2); }
+.plan-briefing-stagger > :nth-child(2) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4); }
+.plan-briefing-stagger > :nth-child(3) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4 * 2); }
+.plan-briefing-stagger > :nth-child(4) { animation-delay: calc(var(--briefing-press) / 2 + var(--briefing-duration) / 4 * 3); }
+
+/* The action's label, when the pick it names changes. */
+.plan-briefing-label {
+  display: inline-block;
+  animation: briefing-label var(--briefing-duration) var(--briefing-easing) backwards;
+}
+
+.plan-briefing-press {
+  transition:
+    transform var(--briefing-press) var(--briefing-easing),
+    opacity var(--briefing-press) var(--briefing-easing);
+}
+.plan-briefing-press:active:not(:disabled) { transform: scale(0.97); }
+
+.plan-briefing-row { transition: transform var(--briefing-press) var(--briefing-easing); }
+.plan-briefing-row:active:not(:has(:disabled)) { transform: scale(0.985); }
+
+.plan-briefing-tick svg {
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--briefing-press) var(--briefing-easing),
+    transform var(--briefing-duration) var(--briefing-easing);
+}
+.plan-briefing-tick[data-checked] svg { opacity: 1; transform: none; }
+
+.plan-briefing-avatar {
+  background: linear-gradient(160deg, var(--org-tone), color-mix(in srgb, var(--org-tone) 50%, var(--ht-dialog)));
+}
+
+/* The success check pops, then draws its stroke. */
+.plan-briefing-badge {
+  animation: briefing-badge calc(var(--briefing-duration) * 2) var(--briefing-easing) backwards;
+}
+.plan-briefing-badge svg {
+  stroke-dasharray: 24;
+  animation: briefing-draw calc(var(--briefing-duration) * 1.8) var(--briefing-easing) var(--briefing-press) backwards;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .plan-briefing-cta:hover:not(:disabled) { opacity: 0.92; }
+  .plan-briefing-quiet:hover { color: var(--ht-ink); }
+}
+
+@keyframes briefing-step {
+  from { opacity: 0; transform: translateY(var(--briefing-space-6)); filter: blur(var(--briefing-space-2)); }
+}
+
+@keyframes briefing-row {
+  from { opacity: 0; transform: translateY(var(--briefing-space-8)); }
+}
+
+@keyframes briefing-label {
+  from { opacity: 0; transform: translateY(var(--briefing-space-2)); filter: blur(calc(var(--briefing-space-2) * 1.5)); }
+}
+
+@keyframes briefing-badge {
+  from { opacity: 0; transform: scale(0.7); }
+}
+
+@keyframes briefing-draw {
+  from { stroke-dashoffset: 24; }
+}
+
+@keyframes briefing-fade {
+  from { opacity: 0; }
+}
+
+/* Reduced motion: every movement becomes a plain fade. */
+@media (prefers-reduced-motion: reduce) {
+  .plan-briefing-step,
+  .plan-briefing-stagger > *,
+  .plan-briefing-label,
+  .plan-briefing-badge {
+    animation-name: briefing-fade;
+  }
+  .plan-briefing-badge svg { animation: none; }
+  .plan-briefing-press:active:not(:disabled),
+  .plan-briefing-row:active:not(:has(:disabled)) {
+    transform: none;
+  }
+  .plan-briefing-tick svg { transform: none; }
+}

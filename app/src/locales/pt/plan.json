@@ -133,11 +133,32 @@
   "choice": {
     "notice": {
       "title": "As equipes saíram do beta",
-      "pick": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para qualquer um deles. Cada conta mantém uma organização grátis. Se você criou várias só para testar, escolha a que quer manter grátis.",
-      "pickPayer": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para qualquer um deles. Cada conta mantém uma organização grátis. Se você criou várias só para testar, escolha a que quer manter grátis. Sua assinatura passa para a organização que você escolher.",
-      "singleOrg": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para {{name}}. Ela continua grátis.",
-      "singleOrgPayer": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito, então você pode convidar pessoas para {{name}}. Sua assinatura paga por ela.",
-      "member": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston. A partir de {{date}}, os espaços pessoais e de equipe funcionam do mesmo jeito.",
+      "from": "A partir de {{date}}",
+      "thanks": "Obrigado por nos ajudar a definir como as equipes funcionam no Houston.",
+      "team": {
+        "title": "Todo espaço funciona como uma equipe",
+        "any": "Os espaços pessoais e de equipe passam a ser a mesma coisa, então você pode convidar pessoas para qualquer um deles.",
+        "named": "Os espaços pessoais e de equipe passam a ser a mesma coisa, então você pode convidar pessoas para {{name}}."
+      },
+      "oneFree": {
+        "title": "Uma organização grátis por conta",
+        "body": "Ela continua funcionando como hoje."
+      },
+      "pick": {
+        "title": "Escolha a que fica grátis",
+        "body": "Criou várias só para testar? Escolha a sua e a gente cuida do resto."
+      },
+      "moves": {
+        "title": "Sua assinatura vem com você",
+        "body": "Escolha a organização que continua grátis e a que sua assinatura paga."
+      },
+      "staysFree": "{{name}} continua grátis",
+      "paysFor": "Sua assinatura paga por {{name}}",
+      "nothingToDo": "Você não precisa fazer nada. Continua funcionando como hoje.",
+      "member": {
+        "title": "Nada a fazer da sua parte",
+        "body": "As equipes de que você participa continuam funcionando como hoje."
+      },
       "choose": "Escolher minha organização grátis",
       "gotIt": "Entendi",
       "close": "Fechar"
@@ -154,24 +175,28 @@
       "meta": "{{first}} · {{second}}",
       "keep": "Manter {{name}} grátis",
       "close": "Fechar",
-      "step": "Passo {{step}} de 2"
+      "step": "Passo {{step}} de 2",
+      "next": "Próximo",
+      "pickOne": "Escolha uma organização"
     },
     "payer": {
-      "title": "Sua assinatura agora paga uma só organização.",
-      "body": "Escolha a que o seu plano Plus cobre. A cobrança é por membro, todo mês.",
+      "title": "Qual delas sua assinatura paga?",
       "each": "{{price}} cada",
-      "perMonth": "por mês",
+      "free": "Grátis",
       "staysFree": "Continua grátis",
-      "yourFree": "Sua organização grátis",
       "grace": "Seu preço continua {{today}} por mês até {{date}}, e depois passa para {{monthly}} por mês.",
       "noGrace": "Seu preço continua {{monthly}} por mês.",
       "back": "Voltar",
-      "use": "Usar meu plano para {{name}}"
+      "use": "Pagar por {{name}}"
     },
     "done": {
       "title": "{{name}} continua grátis",
-      "othersNeedPlan": "Suas outras organizações precisam de um plano a partir de {{date}}.",
-      "payer": "Sua assinatura paga por {{paid}} a partir de {{date}}.",
+      "sub": "Assim ficam suas organizações a partir de {{date}}.",
+      "status": {
+        "free": "Grátis",
+        "subscription": "Sua assinatura",
+        "needs_plan": "Precisa de um plano"
+      },
       "change": "Você pode mudar isso em Configurações.",
       "close": "Pronto"
     },

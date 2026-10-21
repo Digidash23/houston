@@ -133,11 +133,32 @@
   "choice": {
     "notice": {
       "title": "Teams are out of beta",
-      "pick": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free.",
-      "pickPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free. Your subscription moves to the organization you choose.",
-      "singleOrg": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to {{name}}. It stays free.",
-      "singleOrgPayer": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same, so you can invite people to {{name}}. Your subscription pays for it.",
-      "member": "Thanks for helping us shape how teams work in Houston. From {{date}}, personal and team spaces work the same.",
+      "from": "From {{date}}",
+      "thanks": "Thanks for helping us shape how teams work in Houston.",
+      "team": {
+        "title": "Every space works like a team",
+        "any": "Personal and team spaces become the same thing, so you can invite people to any of them.",
+        "named": "Personal and team spaces become the same thing, so you can invite people to {{name}}."
+      },
+      "oneFree": {
+        "title": "One free organization per account",
+        "body": "It keeps working the way it does today."
+      },
+      "pick": {
+        "title": "Pick the one to keep free",
+        "body": "Made a few just to try things? Choose yours and we'll handle the rest."
+      },
+      "moves": {
+        "title": "Your subscription comes with you",
+        "body": "Pick the organization that stays free and the one your subscription pays for."
+      },
+      "staysFree": "{{name}} stays free",
+      "paysFor": "Your subscription pays for {{name}}",
+      "nothingToDo": "Nothing to do. It keeps working the way it does today.",
+      "member": {
+        "title": "Nothing to do on your side",
+        "body": "The teams you're in keep working like today."
+      },
       "choose": "Choose my free organization",
       "gotIt": "Got it",
       "close": "Close"
@@ -154,24 +175,28 @@
       "meta": "{{first}} · {{second}}",
       "keep": "Keep {{name}} free",
       "close": "Close",
-      "step": "Step {{step}} of 2"
+      "step": "Step {{step}} of 2",
+      "next": "Next",
+      "pickOne": "Pick an organization"
     },
     "payer": {
-      "title": "Your subscription now pays for one organization.",
-      "body": "Pick the one your Plus plan covers. It's billed per member each month.",
+      "title": "Which one does your subscription pay for?",
       "each": "{{price}} each",
-      "perMonth": "per month",
+      "free": "Free",
       "staysFree": "Stays free",
-      "yourFree": "Your free organization",
       "grace": "Your price stays {{today}} a month until {{date}}, then it's {{monthly}} a month.",
       "noGrace": "Your price stays {{monthly}} a month.",
       "back": "Back",
-      "use": "Use my plan for {{name}}"
+      "use": "Pay for {{name}}"
     },
     "done": {
       "title": "{{name}} stays free",
-      "othersNeedPlan": "Your other organizations need a plan from {{date}}.",
-      "payer": "Your subscription pays for {{paid}} from {{date}}.",
+      "sub": "Here's how your organizations look from {{date}}.",
+      "status": {
+        "free": "Free",
+        "subscription": "Your subscription",
+        "needs_plan": "Needs a plan"
+      },
       "change": "You can change this in Settings.",
       "close": "Done"
     },

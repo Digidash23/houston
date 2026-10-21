@@ -43,15 +43,16 @@ test("the modal fills the phone, and the picker and its success step open in the
   ).toBeLessThanOrEqual(0);
 
   await choose.tap();
-  await expect(
-    modal.getByRole("button", { name: "Keep La Fila free" }),
-  ).toBeVisible();
+  const keep = modal.getByRole("button", { name: "Keep La Fila free" });
+  await expect(keep).toBeVisible();
   const picking = await modal.boundingBox();
   expect(picking && Math.round(picking.y + picking.height)).toBe(
     viewport?.height,
   );
+  const keepBox = await keep.boundingBox();
+  expect(keepBox && viewport && keepBox.y > viewport.height / 2).toBe(true);
 
-  await modal.getByRole("button", { name: "Keep La Fila free" }).tap();
+  await keep.tap();
   const done = modal.getByRole("button", { name: "Done" });
   await expect(done).toBeVisible();
   await expect(modal).toContainText("La Fila stays free");

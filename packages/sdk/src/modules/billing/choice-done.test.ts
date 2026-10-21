@@ -23,42 +23,42 @@ const saved = (patch: Parameters<typeof choice>[0]): BillingChoiceSave => ({
 });
 
 describe("choiceDone", () => {
-  it("tells a non-payer that the other orgs need a plan from the cutover", () => {
-    expect(choiceDone(choice({ freeOrgSlug: LA_FILA.slug }))).toEqual({
-      kind: "others_need_plan",
-      free: LA_FILA,
+  it("lists every owned org, busiest first: the free one, the rest need a plan", () => {
+    expect(choiceDone(choice({ freeOrgSlug: INNOVA.slug }))).toEqual({
+      free: INNOVA,
       cutoverAt: CUTOVER,
+      orgs: [
+        { org: LA_FILA, status: "needs_plan" },
+        { org: INNOVA, status: "free" },
+        { org: PERSONAL, status: "needs_plan" },
+      ],
     });
   });
 
-  it("tells a payer which org the subscription pays for", () => {
+  it("marks the org a payer's subscription pays for", () => {
     const stored = choice({
       payer: "plus",
       freeOrgSlug: LA_FILA.slug,
       paidOrgSlug: INNOVA.slug,
-      orgs: [INNOVA, LA_FILA],
     });
-    expect(choiceDone(stored)).toEqual({
-      kind: "payer",
-      free: LA_FILA,
-      paid: INNOVA,
-      othersNeedPlan: false,
-      cutoverAt: CUTOVER,
-    });
+    expect(choiceDone(stored)?.orgs).toEqual([
+      { org: LA_FILA, status: "free" },
+      { org: INNOVA, status: "subscription" },
+      { org: PERSONAL, status: "needs_plan" },
+    ]);
   });
 
-  it("tells a payer with three orgs that the rest need a plan", () => {
+  it("leaves nothing needing a plan for a payer with two orgs", () => {
     const stored = choice({
       payer: "comp",
-      freeOrgSlug: LA_FILA.slug,
-      paidOrgSlug: INNOVA.slug,
-      orgs: [PERSONAL, INNOVA, LA_FILA],
+      freeOrgSlug: PERSONAL.slug,
+      paidOrgSlug: LA_FILA.slug,
+      orgs: [PERSONAL, LA_FILA],
     });
-    expect(choiceDone(stored)).toMatchObject({
-      kind: "payer",
-      paid: INNOVA,
-      othersNeedPlan: true,
-    });
+    expect(choiceDone(stored)?.orgs).toEqual([
+      { org: LA_FILA, status: "subscription" },
+      { org: PERSONAL, status: "free" },
+    ]);
   });
 
   it("never names a paid org for someone with no subscription to move", () => {
@@ -68,16 +68,31 @@ describe("choiceDone", () => {
       freeOrgSlug: LA_FILA.slug,
       paidOrgSlug: INNOVA.slug,
     });
-    expect(choiceDone(stored)).toEqual({
-      kind: "others_need_plan",
-      free: LA_FILA,
-      cutoverAt: CUTOVER,
-    });
+    expect(choiceDone(stored)?.orgs).toEqual([
+      { org: LA_FILA, status: "free" },
+      { org: INNOVA, status: "needs_plan" },
+      { org: PERSONAL, status: "needs_plan" },
+    ]);
   });
 
-  it("says nothing more when the free org is the only one left", () => {
+  it("never pays for the free org, even if the record names it twice", () => {
+    const stored = choice({
+      payer: "plus",
+      freeOrgSlug: INNOVA.slug,
+      paidOrgSlug: INNOVA.slug,
+      orgs: [INNOVA, LA_FILA],
+    });
+    expect(choiceDone(stored)?.orgs).toEqual([
+      { org: LA_FILA, status: "needs_plan" },
+      { org: INNOVA, status: "free" },
+    ]);
+  });
+
+  it("lists only the free org when it is the only one left", () => {
     const stored = choice({ freeOrgSlug: PERSONAL.slug, orgs: [PERSONAL] });
-    expect(choiceDone(stored)).toMatchObject({ kind: "only_org" });
+    expect(choiceDone(stored)?.orgs).toEqual([
+      { org: PERSONAL, status: "free" },
+    ]);
   });
 
   it("has no success step without a stored free pick", () => {
@@ -94,7 +109,7 @@ describe("the picker opened from Settings", () => {
     );
     expect(frame).toMatchObject({
       open: true,
-      done: { kind: "others_need_plan", free: INNOVA },
+      done: { free: INNOVA },
     });
     // Closing keeps the step for the close animation; reopening drops it.
     expect(closeChoicePicker(frame)).toEqual({ ...frame, open: false });

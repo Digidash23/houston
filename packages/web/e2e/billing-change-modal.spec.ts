@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import {
   armCapabilities,
   armChoice,
@@ -37,6 +38,10 @@ test.beforeEach(async ({ page }) => {
 
 const routes = async () => (await choiceCalls()).map((call) => call.route);
 
+/** One org's row on the success step: its name and what it becomes. */
+const outcome = (frame: Locator, name: string) =>
+  frame.getByRole("listitem").filter({ hasText: name });
+
 test("an owner picks the org that stays free from the modal, and it stays gone", async ({
   page,
 }) => {
@@ -48,9 +53,15 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
   await expect(page.getByRole("dialog", { name: MODAL_TITLE })).toBeVisible({
     timeout: 15_000,
   });
+  await expect(modal).toContainText("From Friday, October 23");
   await expect(modal).toContainText(
-    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free.",
+    "Thanks for helping us shape how teams work in Houston.",
   );
+  await expect(modal.getByRole("listitem")).toHaveText([
+    "Every space works like a teamPersonal and team spaces become the same thing, so you can invite people to any of them.",
+    "One free organization per accountIt keeps working the way it does today.",
+    "Pick the one to keep freeMade a few just to try things? Choose yours and we'll handle the rest.",
+  ]);
   await expect(modal).not.toContainText(/\d+ messages a week/);
   await modal.getByRole("button", { name: CHOOSE }).click();
 
@@ -74,8 +85,11 @@ test("an owner picks the org that stays free from the modal, and it stays gone",
     page.getByRole("dialog", { name: "Innova stays free" }),
   ).toBeVisible();
   await expect(modal).toContainText(
-    "Your other organizations need a plan from Friday, October 23.",
+    "Here's how your organizations look from Friday, October 23.",
   );
+  await expect(outcome(modal, "Innova")).toContainText("Free");
+  await expect(outcome(modal, "La Fila")).toContainText("Needs a plan");
+  await expect(outcome(modal, "Personal")).toContainText("Needs a plan");
   await expect(modal).toContainText("You can change this in Settings.");
   await expect(modal.getByRole("radio")).toHaveCount(0);
   expect((await choiceCalls()).filter((c) => c.route === "set")).toEqual([
@@ -104,34 +118,45 @@ test("a Plus payer reads that the subscription moves, then picks both orgs", asy
   await page.goto("/");
 
   const modal = choiceModal(page);
-  await expect(modal).toContainText(
-    "Your subscription moves to the organization you choose.",
-    { timeout: 15_000 },
-  );
+  await expect(modal).toContainText("Your subscription comes with you", {
+    timeout: 15_000,
+  });
   await modal.getByRole("button", { name: CHOOSE }).click();
   await expect(modal).toContainText("Step 1 of 2");
-  await modal.getByRole("button", { name: "Keep La Fila free" }).click();
+  await modal.getByRole("button", { name: "Next" }).click();
 
+  await expect(
+    page.getByRole("dialog", {
+      name: "Which one does your subscription pay for?",
+    }),
+  ).toBeVisible();
   await expect(modal).toContainText("Step 2 of 2");
-  await expect(modal.getByRole("radio")).toHaveCount(2);
+  // The free pick stays listed where it was, but can't be paid for.
+  await expect(modal.getByRole("radio")).toHaveCount(3);
+  await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeDisabled();
+  await expect(
+    modal.getByRole("radio", { name: /La Fila/ }),
+  ).toHaveAccessibleName("La Fila Free Stays free");
   await expect(modal.getByRole("radio", { name: /Innova/ })).toBeChecked();
-  await expect(modal).toContainText("$60per month");
+  await expect(
+    modal.getByRole("radio", { name: /Innova/ }),
+  ).toHaveAccessibleName("Innova 4 members · $15 each");
   await expect(modal).toContainText(
     "Your price stays $15 a month until November 22, then it's $60 a month.",
   );
-  await expect(modal).toContainText("La FilaStays free");
-  await modal.getByRole("button", { name: "Use my plan for Innova" }).click();
+  // Back keeps the free pick; Next returns to the same paid pick.
+  await modal.getByRole("button", { name: "Back" }).click();
+  await expect(modal.getByRole("radio", { name: /La Fila/ })).toBeChecked();
+  await modal.getByRole("button", { name: "Next" }).click();
+  await modal.getByRole("button", { name: "Pay for Innova" }).click();
 
   await expect(
     page.getByRole("dialog", { name: "La Fila stays free" }),
   ).toBeVisible();
-  await expect(modal).toContainText(
-    "Your subscription pays for Innova from Friday, October 23.",
-  );
+  await expect(outcome(modal, "La Fila")).toContainText("Free");
+  await expect(outcome(modal, "Innova")).toContainText("Your subscription");
   // A third org is neither free nor paid for.
-  await expect(modal).toContainText(
-    "Your other organizations need a plan from Friday, October 23.",
-  );
+  await expect(outcome(modal, "Personal")).toContainText("Needs a plan");
   expect((await choiceCalls()).filter((c) => c.route === "set")).toEqual([
     {
       route: "set",
@@ -193,9 +218,8 @@ test("a refusal that leaves one owned org swaps the picker for the notice", asyn
   await modal.getByRole("button", { name: "Keep La Fila free" }).click();
   await expect(page.getByText("You don't own that organization")).toBeVisible();
 
-  await expect(modal).toContainText(
-    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. It stays free.",
-  );
+  await expect(modal).toContainText("La Fila stays free");
+  await expect(modal).toContainText("so you can invite people to La Fila.");
   await expect(modal.getByRole("radio")).toHaveCount(0);
   await expect(modal.getByRole("button", { name: "Got it" })).toBeVisible();
 });
@@ -258,9 +282,8 @@ test("a pick from Billing ends on the success step, and the modal stays gone", a
   await expect(
     page.getByRole("dialog", { name: "Innova stays free" }),
   ).toBeVisible();
-  await expect(picker).toContainText(
-    "Your other organizations need a plan from Friday, October 23.",
-  );
+  await expect(outcome(picker, "Innova")).toContainText("Free");
+  await expect(outcome(picker, "La Fila")).toContainText("Needs a plan");
   await picker.getByRole("button", { name: "Done" }).click();
   await expect(picker).toBeHidden();
   await expect(billingScreen(page)).toContainText(
@@ -342,10 +365,9 @@ test("a member reads it once: Got it dismisses it on every device", async ({
   await armChoice(memberChoice());
   await page.goto("/");
   const modal = choiceModal(page);
-  await expect(modal).toContainText(
-    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same.",
-    { timeout: 15_000 },
-  );
+  await expect(modal).toContainText("Nothing to do on your side", {
+    timeout: 15_000,
+  });
   await expect(modal.getByRole("button", { name: "Maybe later" })).toHaveCount(
     0,
   );
@@ -390,10 +412,9 @@ test("a single-org owner reads that it stays free; the X dismisses it too", asyn
   await armChoice(singleOrgChoice());
   await page.goto("/");
   const modal = choiceModal(page);
-  await expect(modal).toContainText(
-    "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. It stays free.",
-    { timeout: 15_000 },
-  );
+  await expect(modal).toContainText("La Fila stays free", {
+    timeout: 15_000,
+  });
   await modal.getByRole("button", { name: "Close" }).click();
   await expect(modal).toBeHidden();
   await expect.poll(routes).toContain("dismiss");

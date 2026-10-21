@@ -1,60 +1,55 @@
 import type { BillingChoice } from "@houston/engine-adapter";
 import { payerTotals, pickerRows } from "@houston/sdk";
-import { Button } from "@houston-ai/core";
-import { ChevronLeft, Info } from "lucide-react";
 import { type ReactNode, useId } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FreeOrgRow,
-  MostActiveTag,
-  OrgRadio,
-  PickerFooter,
-  StepLabel,
-  useOrgName,
-} from "./free-org-picker-rows";
+import { OrgRadio, PickerProgress, useOrgName } from "./free-org-picker-rows";
+import { PlanBriefingCta, PlanBriefingQuietButton } from "./plan-briefing-cta";
 
 interface StepProps {
   choice: BillingChoice;
   selected: string;
   onSelect: (slug: string) => void;
-  /** Set for a payer: the step this is, of two. */
-  step?: 1 | 2;
   busy: boolean;
   /** Renders the frame's title; the id names an inner span for aria-labelledby. */
   title: (text: string, id: string) => ReactNode;
+  onConfirm: () => void;
 }
 
-export function FreeStep(props: StepProps & { onConfirm: () => void }) {
+/** The phone sheet seats the actions at the bottom, under the thumb. */
+function Actions({ children }: { children: ReactNode }) {
+  return <div className="mt-auto flex flex-col md:mt-0">{children}</div>;
+}
+
+/** The org that stays free. A payer goes on to a second step. */
+export function FreeStep(props: StepProps & { payer: boolean }) {
   const { t } = useTranslation("plan");
   const titleId = useId();
   const orgName = useOrgName();
   const rows = pickerRows(props.choice);
   const picked = rows.find((row) => row.org.slug === props.selected)?.org;
+  const label = !picked
+    ? t("choice.picker.pickOne")
+    : props.payer
+      ? t("choice.picker.next")
+      : t("choice.picker.keep", { name: orgName(picked) });
   return (
     <>
-      <div className="pr-7">
-        <StepLabel step={props.step} />
-        {props.title(t("choice.picker.title"), titleId)}
-      </div>
+      {props.payer && <PickerProgress step={1} />}
+      {props.title(t("choice.picker.title"), titleId)}
       <div
         role="radiogroup"
         aria-labelledby={titleId}
-        className="flex flex-col gap-2"
+        className="plan-briefing-stagger mb-6 flex flex-col gap-2"
       >
         {rows.map(({ org, mostActive }) => (
           <OrgRadio
             key={org.slug}
             group="free-org"
             value={org.slug}
+            name={orgName(org)}
             checked={org.slug === props.selected}
             onSelect={props.onSelect}
-            name={orgName(org)}
-            title={orgName(org)}
-            tag={
-              mostActive && (
-                <MostActiveTag label={t("choice.picker.mostActive")} />
-              )
-            }
+            tag={mostActive ? t("choice.picker.mostActive") : undefined}
             meta={t("choice.picker.meta", {
               first: t("choice.picker.members", { count: org.memberCount }),
               second:
@@ -65,117 +60,97 @@ export function FreeStep(props: StepProps & { onConfirm: () => void }) {
           />
         ))}
       </div>
-      <PickerFooter
-        primary={
-          <Button
-            size="lg"
-            disabled={!picked || props.busy}
-            onClick={props.onConfirm}
-            className="active:scale-[0.97]"
-          >
-            {t("choice.picker.keep", { name: picked ? orgName(picked) : "" })}
-          </Button>
-        }
-      />
+      <Actions>
+        <PlanBriefingCta
+          label={label}
+          disabled={!picked || props.busy}
+          onClick={props.onConfirm}
+        />
+      </Actions>
     </>
   );
 }
 
+/**
+ * The org a payer's subscription pays for, priced per org. The free pick
+ * stays listed where it was, disabled, so the two steps read as one list.
+ */
 export function PaidStep(
-  props: StepProps & {
-    freeSlug: string;
-    onBack: () => void;
-    onConfirm: () => void;
-  },
+  props: StepProps & { freeSlug: string; onBack: () => void },
 ) {
   const { t, i18n } = useTranslation("plan");
   const titleId = useId();
   const orgName = useOrgName();
   const rows = pickerRows(props.choice);
-  const free = rows.find((row) => row.org.slug === props.freeSlug)?.org;
-  const paid = rows.filter((row) => row.org.slug !== props.freeSlug);
-  const picked = paid.find((row) => row.org.slug === props.selected)?.org;
+  const picked = rows.find(
+    (row) => row.org.slug === props.selected && row.org.slug !== props.freeSlug,
+  )?.org;
   const totals = picked
     ? payerTotals(props.choice, picked.slug, i18n.language)
     : null;
   return (
     <>
-      <div className="pr-7">
-        <StepLabel step={2} />
-        {props.title(t("choice.payer.title"), titleId)}
-        <p className="mt-2 text-sm leading-relaxed text-hover-text">
-          {t("choice.payer.body")}
-        </p>
-      </div>
-      <div
-        role="radiogroup"
-        aria-labelledby={titleId}
-        className="flex flex-col gap-2"
-      >
-        {paid.map(({ org }) => {
-          const price = payerTotals(props.choice, org.slug, i18n.language);
-          return (
-            <OrgRadio
-              key={org.slug}
-              group="paid-org"
-              value={org.slug}
-              checked={org.slug === props.selected}
-              onSelect={props.onSelect}
-              name={orgName(org)}
-              title={orgName(org)}
-              meta={t("choice.picker.meta", {
-                first: t("choice.picker.members", { count: org.memberCount }),
-                second: t("choice.payer.each", { price: price?.seat }),
-              })}
-              trailing={
-                <span className="shrink-0 text-right text-sm font-medium text-ink tabular-nums">
-                  {price?.monthly}
-                  <span className="block text-xs font-normal text-ink-muted">
-                    {t("choice.payer.perMonth")}
-                  </span>
-                </span>
-              }
-            />
-          );
-        })}
-        {free && (
-          <FreeOrgRow
-            name={orgName(free)}
-            tag={t("choice.payer.staysFree")}
-            meta={t("choice.payer.yourFree")}
-          />
+      <PickerProgress step={2} />
+      {props.title(t("choice.payer.title"), titleId)}
+      <div className="mb-6 flex flex-col gap-4">
+        <div
+          role="radiogroup"
+          aria-labelledby={titleId}
+          className="plan-briefing-stagger flex flex-col gap-2"
+        >
+          {rows.map(({ org }) => {
+            const free = org.slug === props.freeSlug;
+            const price = payerTotals(props.choice, org.slug, i18n.language);
+            return (
+              <OrgRadio
+                key={org.slug}
+                group="paid-org"
+                value={org.slug}
+                name={orgName(org)}
+                checked={!free && org.slug === props.selected}
+                disabled={free}
+                onSelect={props.onSelect}
+                tag={free ? t("choice.payer.free") : undefined}
+                meta={
+                  free
+                    ? t("choice.payer.staysFree")
+                    : t("choice.picker.meta", {
+                        first: t("choice.picker.members", {
+                          count: org.memberCount,
+                        }),
+                        second: t("choice.payer.each", { price: price?.seat }),
+                      })
+                }
+              />
+            );
+          })}
+        </div>
+        {totals && (
+          <p className="text-[13px] leading-normal text-ink-muted">
+            {totals.graceEndsOn
+              ? t("choice.payer.grace", {
+                  today: totals.today,
+                  date: totals.graceEndsOn,
+                  monthly: totals.monthly,
+                })
+              : t("choice.payer.noGrace", { monthly: totals.monthly })}
+          </p>
         )}
       </div>
-      {totals && (
-        <p className="flex gap-2.5 rounded-xl bg-chip px-3.5 py-3 text-[13px] leading-normal text-hover-text">
-          <Info aria-hidden className="mt-px size-4 shrink-0" />
-          {totals.graceEndsOn
-            ? t("choice.payer.grace", {
-                today: totals.today,
-                date: totals.graceEndsOn,
-                monthly: totals.monthly,
-              })
-            : t("choice.payer.noGrace", { monthly: totals.monthly })}
-        </p>
-      )}
-      <PickerFooter
-        start={
-          <Button variant="ghost" onClick={props.onBack} disabled={props.busy}>
-            <ChevronLeft aria-hidden />
-            {t("choice.payer.back")}
-          </Button>
-        }
-        primary={
-          <Button
-            size="lg"
-            disabled={!picked || props.busy}
-            onClick={props.onConfirm}
-            className="active:scale-[0.97]"
-          >
-            {t("choice.payer.use", { name: picked ? orgName(picked) : "" })}
-          </Button>
-        }
-      />
+      <Actions>
+        <PlanBriefingCta
+          label={
+            picked
+              ? t("choice.payer.use", { name: orgName(picked) })
+              : t("choice.picker.pickOne")
+          }
+          disabled={!picked || props.busy}
+          onClick={props.onConfirm}
+        />
+        <PlanBriefingQuietButton onClick={props.onBack} disabled={props.busy}>
+          {t("choice.payer.back")}
+        </PlanBriefingQuietButton>
+      </Actions>
     </>
   );
 }

@@ -21,9 +21,10 @@ import { useSetBillingChoice } from "../../hooks/queries/use-billing-choice";
 import { DoneStep } from "./free-org-picker-done";
 import { FreeStep, PaidStep } from "./free-org-picker-steps";
 import { PlanBriefingFrame } from "./plan-briefing-frame";
+import { BriefingStep } from "./plan-briefing-swap";
 
 const TITLE_CLASS =
-  "text-2xl font-medium leading-tight tracking-tight text-balance text-ink";
+  "mb-5 pr-8 text-2xl font-semibold leading-tight tracking-tight text-balance text-ink";
 
 /**
  * The steps, mounted fresh on every open so each one starts on the stored
@@ -66,9 +67,9 @@ export function PickerBody({
       },
     });
 
-  if (step === "paid")
-    return (
-      <div className="flex flex-col gap-5">
+  return (
+    <BriefingStep step={step}>
+      {step === "paid" ? (
         <PaidStep
           choice={choice}
           freeSlug={free ?? ""}
@@ -81,27 +82,25 @@ export function PickerBody({
             free && paid && submit({ freeOrgSlug: free, paidOrgSlug: paid })
           }
         />
-      </div>
-    );
-  return (
-    <div className="flex flex-col gap-5">
-      <FreeStep
-        choice={choice}
-        selected={free ?? ""}
-        onSelect={(slug) => update({ free: slug })}
-        step={payer ? 1 : undefined}
-        busy={save.isPending}
-        title={title}
-        onConfirm={() => {
-          if (!free) return;
-          if (!payer) return submit({ freeOrgSlug: free });
-          update({
-            step: "paid",
-            paid: paid && paid !== free ? paid : defaultPaidOrg(choice, free),
-          });
-        }}
-      />
-    </div>
+      ) : (
+        <FreeStep
+          choice={choice}
+          selected={free ?? ""}
+          onSelect={(slug) => update({ free: slug })}
+          payer={payer}
+          busy={save.isPending}
+          title={title}
+          onConfirm={() => {
+            if (!free) return;
+            if (!payer) return submit({ freeOrgSlug: free });
+            update({
+              step: "paid",
+              paid: paid && paid !== free ? paid : defaultPaidOrg(choice, free),
+            });
+          }}
+        />
+      )}
+    </BriefingStep>
   );
 }
 
@@ -136,16 +135,18 @@ export function FreeOrgPicker({
       }}
       testId="free-org-picker"
     >
-      {frame.done ? (
-        <DoneStep done={frame.done} onClose={close} />
-      ) : (
-        <PickerBody
-          choice={choice}
-          onAnswer={(outcome) =>
-            setFrame((current) => choicePickerSaved(current, outcome))
-          }
-        />
-      )}
+      <BriefingStep step={frame.done ? "done" : "picking"}>
+        {frame.done ? (
+          <DoneStep done={frame.done} onClose={close} />
+        ) : (
+          <PickerBody
+            choice={choice}
+            onAnswer={(outcome) =>
+              setFrame((current) => choicePickerSaved(current, outcome))
+            }
+          />
+        )}
+      </BriefingStep>
     </PlanBriefingFrame>
   );
 }

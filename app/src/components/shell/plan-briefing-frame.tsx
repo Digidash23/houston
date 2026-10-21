@@ -1,17 +1,21 @@
 import { duration, easing, space } from "@houston/design-tokens";
-import { cn, Dialog, DialogCloseButton, DialogContent } from "@houston-ai/core";
+import { Dialog, DialogCloseButton, DialogContent } from "@houston-ai/core";
 import { type CSSProperties, type ReactNode, useState } from "react";
 import { createUserDismissal } from "./user-dismissal";
 import "./plan-announcement.css";
+import "./plan-briefing-motion.css";
 
 const briefingStyle = (width: string) =>
   ({
     "--briefing-width": width,
+    "--briefing-space-2": space["2"],
     "--briefing-space-4": space["4"],
+    "--briefing-space-6": space["6"],
     "--briefing-space-8": space["8"],
     "--briefing-space-16": space["16"],
     "--briefing-space-32": space["32"],
     "--briefing-duration": duration.fast,
+    "--briefing-press": duration.press,
     "--briefing-easing": `cubic-bezier(${easing.entrance.join(", ")})`,
   }) as CSSProperties;
 
@@ -66,29 +70,5 @@ export function PlanBriefingFrame({
         />
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** The briefing's quiet way out ("Maybe later"), under its primary action. */
-export function PlanBriefingQuietButton({
-  onClick,
-  className,
-  children,
-}: {
-  onClick: () => void;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "mt-4 self-center rounded-full px-4 py-2 text-sm text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus",
-        className,
-      )}
-    >
-      {children}
-    </button>
   );
 }

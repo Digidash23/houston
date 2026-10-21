@@ -1,15 +1,12 @@
 import { layout } from "@houston/design-tokens";
-import type { BillingChoice } from "@houston/engine-adapter";
 import {
   CLOSED_CHOICE_FRAME,
   choiceModal,
   closeChoiceFrame,
   finishPicking,
   nextChoiceModalFrame,
-  type ShownChoiceModal,
   startPicking,
 } from "@houston/sdk";
-import { DialogDescription, DialogTitle } from "@houston-ai/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,14 +14,11 @@ import {
   useDismissBillingChoice,
 } from "../../hooks/queries/use-billing-choice";
 import { useChoiceNow } from "../../hooks/use-choice-now";
-import { useNoticeBody } from "./billing-change-copy";
+import { BillingChangeIntro } from "./billing-change-intro";
 import { PickerBody } from "./free-org-picker";
 import { DoneStep } from "./free-org-picker-done";
-import { PlanAnnouncementCta } from "./plan-announcement-cta";
-import {
-  PlanBriefingFrame,
-  PlanBriefingQuietButton,
-} from "./plan-briefing-frame";
+import { PlanBriefingFrame } from "./plan-briefing-frame";
+import { BriefingStep } from "./plan-briefing-swap";
 
 /**
  * The pricing-change announcement, shown when the app opens. Cloud only.
@@ -74,65 +68,25 @@ export function BillingChangeModal({
       described={phase.step !== "picking"}
       testId="billing-change-modal"
     >
-      {phase.step === "done" ? (
-        <DoneStep done={phase.done} onClose={close} />
-      ) : phase.step === "picking" ? (
-        <PickerBody
-          choice={choice}
-          onAnswer={(outcome) =>
-            setFrame((current) => finishPicking(current, outcome))
-          }
-        />
-      ) : (
-        <Intro
-          shown={shown}
-          choice={choice}
-          onPick={() => setFrame(startPicking)}
-          onClose={close}
-        />
-      )}
-    </PlanBriefingFrame>
-  );
-}
-
-function Intro({
-  shown,
-  choice,
-  onPick,
-  onClose,
-}: {
-  shown: ShownChoiceModal;
-  choice: BillingChoice;
-  onPick: () => void;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation("plan");
-  const body = useNoticeBody(shown.notice, choice);
-  const pick = shown.notice.kind === "pick";
-  return (
-    <>
-      <div className="plan-briefing-rise plan-briefing-stage-2 space-y-4 pb-8 pt-4 md:pt-6">
-        <DialogTitle className="pr-8 text-balance text-3xl font-medium leading-tight tracking-tight md:text-4xl">
-          {t("choice.notice.title")}
-        </DialogTitle>
-        <DialogDescription className="max-w-prose text-base leading-relaxed text-ink-muted">
-          {body}
-        </DialogDescription>
-      </div>
-      {/* The phone sheet seats the actions at the bottom, under the thumb. */}
-      <div className="plan-briefing-rise plan-briefing-stage-4 mt-auto flex flex-col md:mt-0">
-        <PlanAnnouncementCta
-          label={pick ? t("choice.notice.choose") : t("choice.notice.gotIt")}
-          pending={false}
-          fallbackUrl={null}
-          onClick={pick ? onPick : onClose}
-        />
-        {pick && (
-          <PlanBriefingQuietButton onClick={onClose}>
-            {t("maybeLater")}
-          </PlanBriefingQuietButton>
+      <BriefingStep step={phase.step}>
+        {phase.step === "done" ? (
+          <DoneStep done={phase.done} onClose={close} />
+        ) : phase.step === "picking" ? (
+          <PickerBody
+            choice={choice}
+            onAnswer={(outcome) =>
+              setFrame((current) => finishPicking(current, outcome))
+            }
+          />
+        ) : (
+          <BillingChangeIntro
+            shown={shown}
+            choice={choice}
+            onPick={() => setFrame(startPicking)}
+            onClose={close}
+          />
         )}
-      </div>
-    </>
+      </BriefingStep>
+    </PlanBriefingFrame>
   );
 }

@@ -89,7 +89,7 @@ describe("a picker the modal closes under", () => {
     expect(nextChoiceModalFrame(held, picked)).toBe(held);
     expect(finishPicking(held, saved)).toMatchObject({
       open: true,
-      phase: { step: "done", done: { kind: "others_need_plan", free: INNOVA } },
+      phase: { step: "done", done: { free: INNOVA } },
     });
   });
 
@@ -139,11 +139,7 @@ describe("the success step", () => {
       open: true,
       phase: {
         step: "done",
-        done: {
-          kind: "others_need_plan",
-          free: INNOVA,
-          cutoverAt: CUTOVER,
-        },
+        done: { free: INNOVA, cutoverAt: CUTOVER },
       },
     });
   });

@@ -1,49 +1,45 @@
 import type { BillingChoice, BillingChoiceOrg } from "@houston/wire-types";
 import type { BillingChoiceSave } from "./choice";
-import { canChangeChoice, choosesPaidOrg } from "./choice-model";
+import { canChangeChoice, choosesPaidOrg, pickerRows } from "./choice-model";
 
 /**
- * What the picker's success step says once a pick is stored. `payer`: the
- * subscription pays for `paid` from the cutover (`othersNeedPlan`: they own
- * more orgs than the free and the paid one, and those need a plan from then).
- * `others_need_plan`: the person's other orgs need a plan from then.
- * `only_org`: they own just the free one now, so there is nothing else to say.
+ * What an owned org becomes at the cutover. `free`: the pick. `subscription`:
+ * the payer's subscription pays for it. `needs_plan`: everything else.
  */
-export type ChoiceDone = {
+export type ChoiceOrgStatus = "free" | "subscription" | "needs_plan";
+
+export interface ChoiceDoneOrg {
+  org: BillingChoiceOrg;
+  status: ChoiceOrgStatus;
+}
+
+/** What the picker's success step shows once a pick is stored. */
+export interface ChoiceDone {
   free: BillingChoiceOrg;
   /**
    * The cutover instant. The surface formats it when it renders
    * ({@link formatCutoverDate}), so a language change reaches an open step.
    */
   cutoverAt: string;
-} & (
-  | { kind: "payer"; paid: BillingChoiceOrg; othersNeedPlan: boolean }
-  | { kind: "others_need_plan" }
-  | { kind: "only_org" }
-);
+  /** Every org the person owns, in the picker's order. */
+  orgs: ChoiceDoneOrg[];
+}
 
 /** The success step for a stored choice, or null if it holds no free pick. */
 export function choiceDone(saved: BillingChoice): ChoiceDone | null {
   const free = saved.orgs.find((org) => org.slug === saved.freeOrgSlug);
   if (!free) return null;
-  const { cutoverAt } = saved;
   // A paid org on the record means nothing without a subscription to move.
-  const paid = choosesPaidOrg(saved)
-    ? saved.orgs.find(
-        (org) => org.slug === saved.paidOrgSlug && org.slug !== free.slug,
-      )
-    : undefined;
-  if (paid)
-    return {
-      kind: "payer",
-      free,
-      paid,
-      othersNeedPlan: saved.orgs.length > 2,
-      cutoverAt,
-    };
-  return saved.orgs.length > 1
-    ? { kind: "others_need_plan", free, cutoverAt }
-    : { kind: "only_org", free, cutoverAt };
+  const paid = choosesPaidOrg(saved) ? saved.paidOrgSlug : null;
+  const status = (org: BillingChoiceOrg): ChoiceOrgStatus => {
+    if (org.slug === free.slug) return "free";
+    return org.slug === paid ? "subscription" : "needs_plan";
+  };
+  return {
+    free,
+    cutoverAt: saved.cutoverAt,
+    orgs: pickerRows(saved).map(({ org }) => ({ org, status: status(org) })),
+  };
 }
 
 /**

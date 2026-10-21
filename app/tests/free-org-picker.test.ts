@@ -1,7 +1,7 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { before, describe, it } from "node:test";
 import type { BillingChoice } from "@houston/engine-adapter";
-import { choiceDone, choiceNotice } from "@houston/sdk";
+import { choiceDone, choiceModal } from "@houston/sdk";
 import { JSDOM } from "jsdom";
 import type { ReactElement } from "react";
 import plan from "../src/locales/en/plan.json" with { type: "json" };
@@ -12,7 +12,7 @@ let h: typeof import("react").createElement;
 let render: (element: ReactElement) => string;
 let steps: typeof import("../src/components/shell/free-org-picker-steps.tsx");
 let done: typeof import("../src/components/shell/free-org-picker-done.tsx");
-let copy: typeof import("../src/components/shell/billing-change-copy.ts");
+let intro: typeof import("../src/components/shell/billing-change-intro.tsx");
 let i18next: typeof import("i18next").default;
 let Dialog: typeof import("@houston-ai/core").Dialog;
 
@@ -32,7 +32,7 @@ before(async () => {
   steps = await import("../src/components/shell/free-org-picker-steps.tsx");
   done = await import("../src/components/shell/free-org-picker-done.tsx");
   ({ Dialog } = await import("@houston-ai/core"));
-  copy = await import("../src/components/shell/billing-change-copy.ts");
+  intro = await import("../src/components/shell/billing-change-intro.tsx");
 });
 
 const org = (slug: string, name: string, patch = {}) => ({
@@ -83,17 +83,21 @@ const title = (text: string) => h("h2", null, text);
 const noop = () => undefined;
 
 describe("the free-org picker", () => {
-  it("lists the busiest org first, tagged and preselected, with its activity", () => {
-    const page = doc(
+  const free = (payer: boolean) =>
+    doc(
       h(steps.FreeStep, {
         choice: CHOICE,
         selected: "1111111111111111",
         onSelect: noop,
+        payer,
         busy: false,
         title,
         onConfirm: noop,
       }),
     );
+
+  it("lists the busiest org first, tagged and preselected, with its activity", () => {
+    const page = free(false);
     const rows = [...page.querySelectorAll("label")].map((row) =>
       row.textContent?.trim(),
     );
@@ -105,9 +109,16 @@ describe("the free-org picker", () => {
     const checked = page.querySelector<HTMLInputElement>("input:checked");
     strictEqual(checked?.value, "1111111111111111");
     strictEqual(page.querySelector("button")?.textContent, "Keep La Fila free");
+    strictEqual(page.body.textContent?.includes("Step 1 of 2"), false);
   });
 
-  it("prices the payer step and shows the free pick as a disabled row", () => {
+  it("names a payer's first step and moves on with Next", () => {
+    const page = free(true);
+    ok(page.body.textContent?.startsWith("Step 1 of 2"));
+    strictEqual(page.querySelector("button")?.textContent, "Next");
+  });
+
+  it("prices the payer step and keeps the free pick listed but disabled", () => {
     const page = doc(
       h(steps.PaidStep, {
         choice: CHOICE,
@@ -121,131 +132,175 @@ describe("the free-org picker", () => {
       }),
     );
     const text = page.body.textContent ?? "";
-    ok(text.includes("Step 2 of 2"));
-    ok(text.includes("4 members · $15 each$60per month"));
-    ok(text.includes("La FilaStays freeYour free organization"));
+    ok(text.startsWith("Step 2 of 2Which one does your subscription pay for?"));
+    const radios = [...page.querySelectorAll<HTMLInputElement>("input")].map(
+      (input) => [input.value, input.checked, input.disabled],
+    );
+    deepStrictEqual(radios, [
+      ["1111111111111111", false, true],
+      ["2222222222222222", true, false],
+      ["3333333333333333", false, false],
+    ]);
+    const rows = [...page.querySelectorAll("label")].map((row) =>
+      row.textContent?.trim(),
+    );
+    deepStrictEqual(rows, [
+      "LFLa FilaFreeStays free",
+      "INInnova4 members · $15 each",
+      "PEPersonal1 member · $15 each",
+    ]);
     ok(
       text.includes(
         "Your price stays $15 a month until November 22, then it's $60 a month.",
       ),
     );
-    strictEqual(page.querySelectorAll("label").length, 2);
     const buttons = [...page.querySelectorAll("button")].map(
       (b) => b.textContent,
     );
-    deepStrictEqual(buttons, ["Back", "Use my plan for Innova"]);
+    deepStrictEqual(buttons, ["Pay for Innova", "Back"]);
   });
-});
 
-/** The success step's title, lines and button for a stored choice. */
-function doneText(stored: BillingChoice) {
-  const step = choiceDone(stored);
-  ok(step, "a stored pick has a success step");
-  const page = new JSDOM(
-    render(
+  it("gives an org the same avatar tone wherever it shows", () => {
+    const tones = (page: Document) =>
+      [...page.querySelectorAll("[data-tone]")].map((avatar) =>
+        avatar.getAttribute("data-tone"),
+      );
+    deepStrictEqual(tones(free(false)), ["crimson", "orange", "teal"]);
+    const step = choiceDone({ ...CHOICE, freeOrgSlug: "3333333333333333" });
+    ok(step);
+    const success = doc(
       h(
         Dialog,
         { open: true },
         h(done.DoneStep, { done: step, onClose: noop }),
       ),
-    ),
-  ).window.document;
+    );
+    deepStrictEqual(tones(success), ["crimson", "orange", "teal"]);
+  });
+});
+
+/** The success step's title, lines, org rows and button for a stored choice. */
+function doneText(stored: BillingChoice) {
+  const step = choiceDone(stored);
+  ok(step, "a stored pick has a success step");
+  const page = doc(
+    h(Dialog, { open: true }, h(done.DoneStep, { done: step, onClose: noop })),
+  );
   return {
     title: page.querySelector("h2")?.textContent,
-    lines: [...page.querySelectorAll("p > span")].map(
-      (line) => line.textContent,
+    lines: [...page.querySelectorAll("p")].map((line) => line.textContent),
+    orgs: [...page.querySelectorAll("li")].map((row) =>
+      [...row.querySelectorAll("span:not([aria-hidden])")].map(
+        (cell) => cell.textContent,
+      ),
     ),
     buttons: [...page.querySelectorAll("button")].map((b) => b.textContent),
   };
 }
 
 describe("the success step", () => {
-  it("tells a non-payer which org stays free and when the others need a plan", () => {
+  it("shows a non-payer which org stays free and that the rest need a plan", () => {
     deepStrictEqual(
       doneText({ ...CHOICE, payer: null, freeOrgSlug: "1111111111111111" }),
       {
         title: "La Fila stays free",
         lines: [
-          "Your other organizations need a plan from Friday, October 23.",
+          "Here's how your organizations look from Friday, October 23.",
           "You can change this in Settings.",
+        ],
+        orgs: [
+          ["La Fila", "Free"],
+          ["Innova", "Needs a plan"],
+          ["Personal", "Needs a plan"],
         ],
         buttons: ["Done"],
       },
     );
   });
 
-  it("tells a payer with three orgs what the plan pays for and what needs one", () => {
+  it("shows a payer which org the subscription pays for", () => {
     deepStrictEqual(
       doneText({
         ...CHOICE,
         freeOrgSlug: "3333333333333333",
         paidOrgSlug: "2222222222222222",
-      }),
-      {
-        title: "Personal stays free",
-        lines: [
-          "Your subscription pays for Innova from Friday, October 23.",
-          "Your other organizations need a plan from Friday, October 23.",
-          "You can change this in Settings.",
-        ],
-        buttons: ["Done"],
-      },
-    );
-  });
-
-  it("tells a payer with two orgs only what the plan pays for", () => {
-    const [, innova, laFila] = CHOICE.orgs;
-    deepStrictEqual(
-      doneText({
-        ...CHOICE,
-        orgs: [innova, laFila],
-        freeOrgSlug: "1111111111111111",
-        paidOrgSlug: "2222222222222222",
-      }).lines,
+      }).orgs,
       [
-        "Your subscription pays for Innova from Friday, October 23.",
-        "You can change this in Settings.",
+        ["La Fila", "Needs a plan"],
+        ["Innova", "Your subscription"],
+        ["Personal", "Free"],
       ],
     );
   });
 
-  it("formats the date in the reader's current language", async () => {
+  it("speaks the reader's current language, date included", async () => {
     await i18next.changeLanguage("es");
     try {
-      const { lines } = doneText({
+      const { lines, orgs } = doneText({
         ...CHOICE,
-        payer: null,
         freeOrgSlug: "1111111111111111",
+        paidOrgSlug: "2222222222222222",
       });
       strictEqual(
         lines[0],
-        "Tus otras organizaciones necesitan un plan desde el viernes, 23 de octubre.",
+        "Así quedan tus organizaciones desde el viernes, 23 de octubre.",
       );
+      deepStrictEqual(orgs, [
+        ["La Fila", "Gratis"],
+        ["Innova", "Tu suscripción"],
+        ["Personal", "Necesita un plan"],
+      ]);
     } finally {
       await i18next.changeLanguage("en");
     }
   });
 });
 
-function noticeText(choice: BillingChoice) {
-  const notice = choiceNotice(choice, {
+/** The intro the modal opens on: its date chip, points and actions. */
+function introText(choice: BillingChoice) {
+  const shown = choiceModal(choice, {
     now: Date.parse("2026-10-20T17:00:00.000Z"),
     locale: i18next.language,
+    closedThisSession: false,
+    otherDialogOpen: false,
   });
-  if (
-    notice.kind !== "pick" &&
-    notice.kind !== "single_org" &&
-    notice.kind !== "member"
-  )
-    return notice.kind;
-  let out = "";
-  const Probe = () => {
-    out = copy.useNoticeBody(notice, choice);
-    return null;
+  if (!shown.open) return "closed";
+  const page = doc(
+    h(
+      Dialog,
+      { open: true },
+      h(intro.BillingChangeIntro, {
+        shown,
+        choice,
+        onPick: noop,
+        onClose: noop,
+      }),
+    ),
+  );
+  return {
+    head: [...page.querySelectorAll(":scope body > p, h2")].map(
+      (line) => line.textContent,
+    ),
+    points: [...page.querySelectorAll("li")].map((point) =>
+      [...point.querySelectorAll("p")].map((line) => line.textContent),
+    ),
+    buttons: [...page.querySelectorAll("button")].map((b) => b.textContent),
   };
-  render(h(Probe));
-  return out;
 }
+
+const HEAD = [
+  "From Friday, October 23",
+  "Teams are out of beta",
+  "Thanks for helping us shape how teams work in Houston.",
+];
+const TEAM_ANY = [
+  "Every space works like a team",
+  "Personal and team spaces become the same thing, so you can invite people to any of them.",
+];
+const ONE_FREE = [
+  "One free organization per account",
+  "It keeps working the way it does today.",
+];
 
 const SINGLE = {
   ...CHOICE,
@@ -254,53 +309,81 @@ const SINGLE = {
   orgs: [{ ...CHOICE.orgs[2] }],
 };
 
-describe("the announcement copy", () => {
+describe("the announcement", () => {
   it("asks an owner to choose, with the date and no price", () => {
-    strictEqual(
-      noticeText({ ...CHOICE, payer: null }),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free.",
-    );
+    deepStrictEqual(introText({ ...CHOICE, payer: null }), {
+      head: HEAD,
+      points: [
+        TEAM_ANY,
+        ONE_FREE,
+        [
+          "Pick the one to keep free",
+          "Made a few just to try things? Choose yours and we'll handle the rest.",
+        ],
+      ],
+      buttons: ["Choose my free organization", "Maybe later"],
+    });
   });
 
-  it("tells a payer the subscription moves to the org they pick", () => {
-    strictEqual(
-      noticeText(CHOICE),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to any of them. Each account keeps one free organization. If you made a few just to try things, pick the one to keep free. Your subscription moves to the organization you choose.",
-    );
+  it("tells a payer the subscription comes with them", () => {
+    const shown = introText(CHOICE);
+    ok(shown !== "closed");
+    deepStrictEqual(shown.points[2], [
+      "Your subscription comes with you",
+      "Pick the organization that stays free and the one your subscription pays for.",
+    ]);
   });
 
   it("names the one org that stays free, or that the subscription pays for", () => {
-    strictEqual(
-      noticeText(SINGLE),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. It stays free.",
-    );
-    strictEqual(
-      noticeText({ ...SINGLE, payer: "plus" }),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same, so you can invite people to La Fila. Your subscription pays for it.",
-    );
+    const named = [
+      "Every space works like a team",
+      "Personal and team spaces become the same thing, so you can invite people to La Fila.",
+    ];
+    const nothing = "Nothing to do. It keeps working the way it does today.";
+    deepStrictEqual(introText(SINGLE), {
+      head: HEAD,
+      points: [named, ["La Fila stays free", nothing]],
+      buttons: ["Got it"],
+    });
+    const payer = introText({ ...SINGLE, payer: "plus" });
+    ok(payer !== "closed");
+    deepStrictEqual(payer.points[1], [
+      "Your subscription pays for La Fila",
+      nothing,
+    ]);
   });
 
-  it("tells a member in someone else's org that spaces work the same", () => {
-    strictEqual(
-      noticeText({ ...SINGLE, orgs: [] }),
-      "Thanks for helping us shape how teams work in Houston. From Friday, October 23, personal and team spaces work the same.",
-    );
+  it("tells a member in someone else's org there is nothing to do", () => {
+    deepStrictEqual(introText({ ...SINGLE, orgs: [] }), {
+      head: HEAD,
+      points: [
+        TEAM_ANY,
+        [
+          "Nothing to do on your side",
+          "The teams you're in keep working like today.",
+        ],
+      ],
+      buttons: ["Got it"],
+    });
   });
 
   it("says nothing once the pick is stored", () => {
     strictEqual(
-      noticeText({ ...CHOICE, freeOrgSlug: "1111111111111111" }),
-      "picked",
+      introText({ ...CHOICE, freeOrgSlug: "1111111111111111" }),
+      "closed",
     );
   });
 
   it("names the date in the reader's language", async () => {
     await i18next.changeLanguage("es");
     try {
-      strictEqual(
-        noticeText({ ...CHOICE, payer: null }),
-        "Gracias por ayudarnos a darle forma a cómo funcionan los equipos en Houston. Desde el viernes, 23 de octubre, los espacios personales y de equipo funcionan igual, así que puedes invitar personas a cualquiera de ellos. Cada cuenta conserva una organización gratis. Si creaste varias solo para probar, elige la que quieres mantener gratis.",
-      );
+      const shown = introText({ ...CHOICE, payer: null });
+      ok(shown !== "closed");
+      deepStrictEqual(shown.head, [
+        "Desde el viernes, 23 de octubre",
+        "Los equipos salieron de beta",
+        "Gracias por ayudarnos a darle forma a cómo funcionan los equipos en Houston.",
+      ]);
     } finally {
       await i18next.changeLanguage("en");
     }

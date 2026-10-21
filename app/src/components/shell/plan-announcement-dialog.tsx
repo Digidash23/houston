@@ -13,10 +13,8 @@ import { useUIStore } from "../../stores/ui";
 import { PlanAnnouncementCta } from "./plan-announcement-cta";
 import { PlanAnnouncementGift } from "./plan-announcement-gift";
 import { PlanAnnouncementPlans } from "./plan-announcement-plans";
-import {
-  PlanBriefingFrame,
-  PlanBriefingQuietButton,
-} from "./plan-briefing-frame";
+import { PlanBriefingQuietButton } from "./plan-briefing-cta";
+import { PlanBriefingFrame } from "./plan-briefing-frame";
 
 /**
  * The one-time launch announcement. `onDismiss` tells the shell it is gone

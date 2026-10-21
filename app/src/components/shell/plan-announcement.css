@@ -63,11 +63,6 @@
   animation: briefing-rise var(--briefing-duration) var(--briefing-easing) both;
 }
 
-/* The success step's check: a small scale-up with the fade, never from 0. */
-.plan-briefing-pop {
-  animation: briefing-pop var(--briefing-duration) var(--briefing-easing) both;
-}
-
 .plan-briefing-stage-1 { animation-delay: calc(var(--briefing-duration) * 0.4); }
 .plan-briefing-stage-2 { animation-delay: calc(var(--briefing-duration) * 0.8); }
 .plan-briefing-stage-3 { animation-delay: calc(var(--briefing-duration) * 1); }
@@ -80,11 +75,6 @@
   to { opacity: 1; transform: scaleX(1); }
 }
 
-@keyframes briefing-pop {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-
 @keyframes briefing-rise {
   from { opacity: 0; transform: translateY(var(--briefing-space-8)); }
   to { opacity: 1; transform: translateY(0); }
@@ -92,8 +82,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .plan-briefing-frame::before,
-  .plan-briefing-rise,
-  .plan-briefing-pop {
+  .plan-briefing-rise {
     animation: none;
   }
 }
