@@ -1,6 +1,6 @@
 /**
  * Visual-regression baselines for the pricing-change modal: an owner's intro,
- * the picker, a payer's second step and the success step in the same frame,
+ * the picker, a payer's second step and both success steps in the same frame,
  * the read-only member and single-org notices, and the Spanish intro, at
  * desktop and phone width. The page clock is pinned before the cutover and
  * every value on screen comes from the fixture. The modal pins its own dark theme; the shell
@@ -89,6 +89,17 @@ test("pricing change modal, payer step — desktop", async ({ page }) => {
   await modal.getByRole("button", { name: "Keep La Fila free" }).click();
   await expect(modal).toContainText("Step 2 of 2");
   await shoot(page, "billing-change-modal-payer-desktop.png");
+});
+
+test("pricing change modal, payer success step — desktop", async ({ page }) => {
+  const modal = await boot(page, "desktop", payerChoice());
+  await modal.getByRole("button", { name: CHOOSE }).click();
+  await modal.getByRole("button", { name: "Keep La Fila free" }).click();
+  await modal.getByRole("button", { name: "Use my plan for Innova" }).click();
+  await expect(modal.getByRole("button", { name: "Done" })).toBeVisible();
+  await expect(modal).toContainText("Your subscription pays for Innova");
+  await expect(modal).toContainText("Your other organizations need a plan");
+  await shoot(page, "billing-change-modal-done-payer-desktop.png");
 });
 
 test("pricing change modal, member — desktop", async ({ page }) => {
