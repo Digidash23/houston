@@ -1,3 +1,5 @@
+import type { BillingChoiceSave } from "@houston/sdk";
+import type { BillingChoice, BillingChoicePick } from "@houston/wire-types";
 import type * as controlPlane from "../control-plane";
 import { HoustonEngineError } from "./errors";
 import type { BaseCtor } from "./mixin";
@@ -54,6 +56,30 @@ export function BillingMixin<TBase extends BaseCtor>(Base: TBase) {
       if (!this.ctx.cp) throw new Error("Billing needs the hosted gateway.");
       return viaSdk("/v1/org/billing/portal", () =>
         this.ctx.sdk.billing.createPortal(),
+      );
+    }
+    // The free-org pick is account-wide and cloud-only: off-cloud there is
+    // nothing to pick, so the read is null like the summary above. Unlike the
+    // summary, the gateway-without-the-route 404 is the SDK's own answer
+    // (null), so the AI Manager reads the same thing the app does.
+    async getBillingChoice(): Promise<BillingChoice | null> {
+      if (!this.ctx.cp) return null;
+      return viaSdk("/v1/me/billing-choice", () =>
+        this.ctx.sdk.billing.getChoice(),
+      );
+    }
+    async setBillingChoice(
+      pick: BillingChoicePick,
+    ): Promise<BillingChoiceSave> {
+      if (!this.ctx.cp) throw new Error("Billing needs the hosted gateway.");
+      return viaSdk("/v1/me/billing-choice", () =>
+        this.ctx.sdk.billing.setChoice(pick),
+      );
+    }
+    async dismissBillingChoiceNotice(): Promise<void> {
+      if (!this.ctx.cp) throw new Error("Billing needs the hosted gateway.");
+      return viaSdk("/v1/me/billing-choice/dismiss", () =>
+        this.ctx.sdk.billing.dismissChoiceNotice(),
       );
     }
   }

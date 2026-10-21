@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { FallbackLink } from "./fallback-link";
+import { PlanBriefingCta } from "./plan-briefing-cta";
 
 export function PlanAnnouncementCta({
   label,
@@ -15,14 +16,7 @@ export function PlanAnnouncementCta({
   const { t } = useTranslation("plan");
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={onClick}
-        className="plan-briefing-cta h-12 w-full rounded-full bg-ink text-base font-medium text-dialog outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60"
-      >
-        {label}
-      </button>
+      <PlanBriefingCta label={label} disabled={pending} onClick={onClick} />
       {fallbackUrl && (
         <FallbackLink
           className="self-center text-sm"

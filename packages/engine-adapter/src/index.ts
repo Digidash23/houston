@@ -11,6 +11,7 @@
 
 // The browser hand-off live view `openBrowserLive` returns, and the handlers it reports through.
 export type {
+  BillingChoiceSave,
   BrowserLiveConnection,
   BrowserLiveConnectionState,
   BrowserLiveConnectOptions,

@@ -66,6 +66,11 @@ export const CLOUD_ONLY_PROBES: readonly CloudOnlyProbe[] = [
     interval: "monthly",
   }),
   cloudOnly("createPortal", "billing is a hosted-subscription concern"),
+  cloudOnly("getChoice", "billing is a hosted-subscription concern"),
+  cloudOnly("setChoice", "billing is a hosted-subscription concern", {
+    pick: { freeOrgSlug: "no-such-space" },
+  }),
+  cloudOnly("dismissChoiceNotice", "billing is a hosted-subscription concern"),
 
   // The personal plan (C19): limits and Plus are metered and billed by the gateway.
   cloudOnly("getPlan", PERSONAL_PLAN),

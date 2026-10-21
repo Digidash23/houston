@@ -25,6 +25,7 @@ import type {
   TokenUsage,
 } from "@houston/runtime-client";
 import { SEED_AGENT_ID, SEED_AGENT_NAME, SEED_WORKSPACE_ID } from "./config";
+import { resetBillingChoice } from "./state-billing-choice";
 import { resetPlan } from "./state-plan";
 import { resetProviders } from "./state-providers";
 import { resetSharedSkills } from "./state-shared-skills";
@@ -558,6 +559,7 @@ export function reset(): void {
   state = freshState();
   resetArming();
   resetPlan();
+  resetBillingChoice();
   resetProviders();
   resetSharedSkills();
   resetSkills();

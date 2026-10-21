@@ -26,6 +26,11 @@ import { type ScriptedToolCall, setNextToolCalls } from "./chat-tools";
 import { ASSISTANT_AGENT_ID, SEED_AGENT_ID } from "./config";
 import { CORS, json } from "./http";
 import { handleAgents } from "./routes";
+import {
+  handleBillingChoiceCallsControl,
+  handleBillingChoiceControl,
+  handleBillingChoiceRoutes,
+} from "./routes-billing-choice";
 import { handleUserRoutes } from "./routes-integrations";
 import { handleMeRoutes } from "./routes-me";
 import {
@@ -340,6 +345,14 @@ export async function handle(req: Request): Promise<Response> {
   if (path === "/__test__/plan" && method === "POST") {
     return handlePlanControl(await parseBody(req));
   }
+  // Arm the free-org pick `GET /v1/me/billing-choice` serves; `{ choice: null }`
+  // (and reset) is a gateway that predates it.
+  if (path === "/__test__/billing-choice" && method === "POST") {
+    return handleBillingChoiceControl(await parseBody(req));
+  }
+  if (path === "/__test__/billing-choice-calls" && method === "GET") {
+    return handleBillingChoiceCallsControl();
+  }
   // The plan-call ledger: every plan route hit (and refused send) since arming.
   if (path === "/__test__/plan-calls" && method === "GET") {
     return handlePlanCallsControl();
@@ -432,6 +445,8 @@ export async function handle(req: Request): Promise<Response> {
   // --- C19 personal plan (per person, across spaces) ---
   const planRoute = handlePlanRoutes(method, segs, body);
   if (planRoute) return planRoute;
+  const choiceRoute = handleBillingChoiceRoutes(method, segs, body);
+  if (choiceRoute) return choiceRoute;
 
   // --- the caller's own editable display profile (name + photo) ---
   const meRoute = handleMeRoutes(method, segs, body);

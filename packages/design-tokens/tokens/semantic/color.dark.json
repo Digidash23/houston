@@ -317,6 +317,53 @@
       "overflow-text": {
         "$value": "{color.neutral.250}"
       }
+    },
+    "org": {
+      "teal": {
+        "$value": "{color.org.teal}"
+      },
+      "teal-deep": {
+        "$value": "{color.org.teal-deep}"
+      },
+      "purple": {
+        "$value": "{color.org.purple}"
+      },
+      "purple-deep": {
+        "$value": "{color.org.purple-deep}"
+      },
+      "orange": {
+        "$value": "{color.org.orange}"
+      },
+      "orange-deep": {
+        "$value": "{color.org.orange-deep}"
+      },
+      "navy": {
+        "$value": "{color.org.navy}"
+      },
+      "navy-deep": {
+        "$value": "{color.org.navy-deep}"
+      },
+      "rose": {
+        "$value": "{color.org.rose}"
+      },
+      "rose-deep": {
+        "$value": "{color.org.rose-deep}"
+      },
+      "forest": {
+        "$value": "{color.org.forest}"
+      },
+      "forest-deep": {
+        "$value": "{color.org.forest-deep}"
+      },
+      "crimson": {
+        "$value": "{color.org.crimson}"
+      },
+      "crimson-deep": {
+        "$value": "{color.org.crimson-deep}"
+      },
+      "initials": {
+        "$value": "{color.base.white}"
+      }
     }
   }
 }

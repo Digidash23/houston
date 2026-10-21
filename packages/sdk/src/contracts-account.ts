@@ -67,10 +67,12 @@ export { InvalidThemeError } from "./modules/appearance/validate";
 export {
   BILLING_INTERVALS,
   type BillingCheckout,
+  type BillingChoiceSave,
   BillingCommand,
   type BillingCommandType,
   BillingHttpError,
   type BillingModule,
+  billingChoiceRefusal,
 } from "./modules/billing";
 // ===== Channels module contract ========================================
 export {

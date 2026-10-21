@@ -12,6 +12,7 @@
  * space carries and the shape this family reads can never drift apart.
  */
 
+import type { BillingChoicePick } from "@houston/wire-types";
 import { requireString } from "../payload";
 
 /** The write vocabulary — the same handlers back the facade and `dispatch`. */
@@ -19,6 +20,9 @@ export const BillingCommand = {
   Get: "billing/get",
   CreateCheckout: "billing/createCheckout",
   CreatePortal: "billing/createPortal",
+  GetChoice: "billing/getChoice",
+  SetChoice: "billing/setChoice",
+  DismissChoiceNotice: "billing/dismissChoiceNotice",
 } as const;
 
 export type BillingCommandType =
@@ -53,4 +57,12 @@ export function requireInterval(
     throw new Error(`'${key}' must be one of ${BILLING_INTERVALS.join(", ")}`);
   }
   return interval;
+}
+
+/** A free-org pick off an untrusted command payload. */
+export function requireChoicePick(payload: unknown): BillingChoicePick {
+  const freeOrgSlug = requireString(payload, "freeOrgSlug");
+  const paid = (payload as { paidOrgSlug?: unknown }).paidOrgSlug;
+  if (paid === undefined || paid === null) return { freeOrgSlug };
+  return { freeOrgSlug, paidOrgSlug: requireString(payload, "paidOrgSlug") };
 }

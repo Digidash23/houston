@@ -129,5 +129,97 @@
       "creatorPlan": "Esta rutina usa el plan Gratis de quien la creó, que limita cuántas veces puede ejecutarse."
     },
     "purchaseLinkTitle": "Este enlace no está disponible en la app"
+  },
+  "choice": {
+    "notice": {
+      "title": "Los equipos salieron de beta",
+      "from": "Desde el {{date}}",
+      "thanks": "Gracias por ayudarnos a darle forma a cómo funcionan los equipos en Houston.",
+      "team": {
+        "title": "Cada espacio funciona como un equipo",
+        "any": "Los espacios personales y de equipo pasan a ser lo mismo, así que puedes invitar personas a cualquiera de ellos.",
+        "named": "Los espacios personales y de equipo pasan a ser lo mismo, así que puedes invitar personas a {{name}}."
+      },
+      "oneFree": {
+        "title": "Una organización gratis por cuenta",
+        "body": "Sigue funcionando como hoy."
+      },
+      "pick": {
+        "title": "Elige la que se queda gratis",
+        "body": "¿Creaste varias solo para probar? Elige la tuya y nosotros nos encargamos del resto."
+      },
+      "moves": {
+        "title": "Tu suscripción viene contigo",
+        "body": "Elige la organización que sigue gratis y la que paga tu suscripción."
+      },
+      "staysFree": "{{name}} sigue gratis",
+      "paysFor": "Tu suscripción paga por {{name}}",
+      "nothingToDo": "No tienes que hacer nada. Sigue funcionando como hoy.",
+      "member": {
+        "title": "No tienes que hacer nada",
+        "body": "Los equipos en los que estás siguen funcionando como hoy."
+      },
+      "choose": "Elegir mi organización gratis",
+      "gotIt": "Entendido",
+      "close": "Cerrar"
+    },
+    "picker": {
+      "title": "¿Qué organización sigue gratis?",
+      "mostActive": "Más activa",
+      "personal": "Personal",
+      "members_one": "{{count}} miembro",
+      "members_other": "{{count}} miembros",
+      "messages_one": "{{count}} mensaje en los últimos 30 días",
+      "messages_other": "{{count}} mensajes en los últimos 30 días",
+      "noMessages": "Sin mensajes en los últimos 30 días",
+      "meta": "{{first}} · {{second}}",
+      "keep": "Mantener <name/> gratis",
+      "close": "Cerrar",
+      "step": "Paso {{step}} de 2",
+      "next": "Siguiente",
+      "pickOne": "Elige una organización"
+    },
+    "payer": {
+      "title": "¿Cuál paga tu suscripción?",
+      "each": "{{price}} cada uno",
+      "free": "Gratis",
+      "staysFree": "Sigue gratis",
+      "grace": "Tu precio sigue en {{today}} al mes hasta el {{date}}, y luego pasa a {{monthly}} al mes.",
+      "noGrace": "Tu precio sigue en {{monthly}} al mes.",
+      "back": "Atrás",
+      "use": "Pagar por <name/>"
+    },
+    "done": {
+      "title": "{{name}} sigue gratis",
+      "sub": "Así quedan tus organizaciones desde el {{date}}.",
+      "status": {
+        "free": "Gratis",
+        "subscription": "Tu suscripción",
+        "needs_plan": "Necesita un plan"
+      },
+      "change": "Puedes cambiarlo en Configuración.",
+      "close": "Listo"
+    },
+    "refused": {
+      "not_owner": {
+        "title": "Esa organización no es tuya",
+        "body": "Solo la cuenta propietaria puede elegir por ella. Elige una de las tuyas."
+      },
+      "not_payer": {
+        "title": "No hay una suscripción para mover",
+        "body": "Elige solo la organización que sigue gratis."
+      },
+      "same_org": {
+        "title": "Elige dos organizaciones distintas",
+        "body": "La organización gratis no puede ser también la que paga tu suscripción."
+      }
+    },
+    "settings": {
+      "title": "Elige tu organización gratis",
+      "pending": "Los planes pasan a las organizaciones el {{date}}. Elige la que sigue gratis.",
+      "picked": "{{name}} sigue gratis desde el {{day}}.",
+      "choose": "Elegir",
+      "change": "Cambiar"
+    }
   }
 }

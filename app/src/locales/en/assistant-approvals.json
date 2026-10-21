@@ -54,7 +54,8 @@
     "submitCustomIntegrationCredential": "Save the secret that finishes setting up this app.",
     "updateActivity": "Update this mission's details or status.",
     "updateRoutine": "Update this routine's schedule or instructions.",
-    "writeAgentFile": "Replace the contents of one of the AI Employee's saved data files."
+    "writeAgentFile": "Replace the contents of one of the AI Employee's saved data files.",
+    "setChoice": "Choose which organization stays free when plans move to organizations. The others will need a paid plan to keep sending messages."
   },
   "arguments": {
     "agentId": "AI Employee",
@@ -148,6 +149,9 @@
     },
     "saveSkill": {
       "slug": "skill"
+    },
+    "setChoice": {
+      "pick": "organizations"
     },
     "submitAgentCustomIntegrationCredential": {
       "slug": "app"

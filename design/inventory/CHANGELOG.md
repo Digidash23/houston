@@ -3,6 +3,30 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v137 - 2026-10-20
+
+Cloud users hear that teams are out of beta before plans move to
+organizations, in a modal when the app opens that wears the launch
+announcement's dark briefing frame (full height on phones). A date chip
+names the day it starts, a line thanks them, and a few short points with
+icons say what changes: every space works like a team, each account keeps
+one free organization, with no price. An owner of several organizations
+sees it on every app open until they choose which one stays free; Maybe
+later hides it until the next open, and the primary action opens the
+picker in the same frame, listing their organizations busiest first with
+an avatar, members and messages from the last 30 days, the busiest tagged
+and preselected, and a check on the chosen row. The button says what it
+will do ("Keep La Fila free"), and focus follows each step to the chosen
+row or the step's title. A Plus subscriber follows a two-step
+progress bar and then picks the organization the subscription pays for,
+with each one's price per member and when extra members start to bill. A
+saved choice ends on a success step in the same frame: a check, which
+organization stays free, and one row per organization saying Free, Your
+subscription or Needs a plan, that it can change in Settings, and Done. A
+single-organization owner and a member of someone else's organization read
+it once. It never stacks on a plan dialog. Billing in Settings keeps a way
+back to the choice while it is open, in the same look.
+
 ## v136 - 2026-10-16
 
 The org chart posts to LinkedIn as a real picture. The share image is a 4:5

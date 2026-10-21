@@ -12,15 +12,31 @@
  * caller's session plus the active-space header its `fetch` stamps, so nothing
  * here names an agent and the module runs on its own {@link moduleScope} rooted
  * at the base URL, never `clientFor(agentId)`. A 401 routes through the shared
- * {@link ModuleContext.authExpiry} notifier.
+ * {@link ModuleContext.authExpiry} notifier. The free-org pick
+ * (`choice.ts`) is the exception: it is account-wide, so the gateway ignores
+ * the space and the adapter's fetch never stamps one on it.
  */
 
+import type { BillingChoice, BillingChoicePick } from "@houston/wire-types";
 import type { ModuleContext } from "../../module-context";
 import { moduleScope, SdkHttpError } from "../http";
 import type { BillingSummary } from "../spaces/types";
+import {
+  type BillingChoiceSave,
+  dismissChoiceNotice,
+  getChoice,
+  setChoice,
+} from "./choice";
 import { createCheckout, createPortal, getBilling } from "./http";
-import { type BillingCheckout, BillingCommand, requireInterval } from "./types";
+import {
+  type BillingCheckout,
+  BillingCommand,
+  requireChoicePick,
+  requireInterval,
+} from "./types";
 
+export type { BillingChoiceSave } from "./choice";
+export { billingChoiceRefusal } from "./choice";
 export type { BillingCheckout, BillingCommandType } from "./types";
 export { BILLING_INTERVALS, BillingCommand } from "./types";
 
@@ -33,6 +49,12 @@ export interface BillingModule {
   createCheckout(interval: "monthly" | "annual"): Promise<BillingCheckout>;
   /** Open the Stripe customer portal for the active team (owner only). */
   createPortal(): Promise<BillingCheckout>;
+  /** The person's free-org pick, account-wide; null where the change is not run. */
+  getChoice(): Promise<BillingChoice | null>;
+  /** Store the pick. The person's own states are outcomes, never throws. */
+  setChoice(pick: BillingChoicePick): Promise<BillingChoiceSave>;
+  /** Hide the announcement on every device. */
+  dismissChoiceNotice(): Promise<void>;
 }
 
 /** A failed billing request. `status` is the upstream HTTP status. */
@@ -49,6 +71,9 @@ export function createBillingModule(ctx: ModuleContext): BillingModule {
     getBilling: () => getBilling(scope),
     createCheckout: (interval) => createCheckout(scope, interval),
     createPortal: () => createPortal(scope),
+    getChoice: () => getChoice(scope),
+    setChoice: (pick) => setChoice(scope, pick),
+    dismissChoiceNotice: () => dismissChoiceNotice(scope),
   };
 
   ctx.registerCommand(BillingCommand.Get, () => module.getBilling());
@@ -56,6 +81,13 @@ export function createBillingModule(ctx: ModuleContext): BillingModule {
     module.createCheckout(requireInterval(p, "interval")),
   );
   ctx.registerCommand(BillingCommand.CreatePortal, () => module.createPortal());
+  ctx.registerCommand(BillingCommand.GetChoice, () => module.getChoice());
+  ctx.registerCommand(BillingCommand.SetChoice, (p) =>
+    module.setChoice(requireChoicePick(p)),
+  );
+  ctx.registerCommand(BillingCommand.DismissChoiceNotice, () =>
+    module.dismissChoiceNotice(),
+  );
 
   return module;
 }

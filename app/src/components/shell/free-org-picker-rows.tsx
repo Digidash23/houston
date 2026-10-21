@@ -1,0 +1,101 @@
+import type { BillingChoiceOrg } from "@houston/engine-adapter";
+import { cn } from "@houston-ai/core";
+import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { OrgAvatar } from "./org-avatar";
+
+/** The name an owned org shows: the personal org keeps today's label. */
+export function useOrgName(): (org: BillingChoiceOrg) => string {
+  const { t } = useTranslation("plan");
+  return (org) => (org.personal ? t("choice.picker.personal") : org.name);
+}
+
+export interface OrgRadioProps {
+  group: string;
+  /** The org's slug. */
+  value: string;
+  name: string;
+  checked: boolean;
+  /** Listed for context, never pickable: the payer step's free org. */
+  disabled?: boolean;
+  onSelect: (value: string) => void;
+  tag?: string;
+  meta: string;
+}
+
+/**
+ * One org in a radio group. The whole row is the hit target (a native radio
+ * inside the label, so the arrow keys move the pick), and the selected row
+ * wears an ink ring and a filled check, so the choice reads without hovering.
+ */
+export function OrgRadio(props: OrgRadioProps) {
+  return (
+    <label
+      className={cn(
+        "plan-briefing-row grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl bg-chip py-3 pl-3 pr-3.5 outline outline-1 -outline-offset-1 outline-line has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-dialog",
+        props.checked && "bg-hover outline-2 -outline-offset-2 outline-ink",
+        props.disabled && "cursor-default opacity-45",
+      )}
+    >
+      <input
+        type="radio"
+        className="sr-only"
+        name={props.group}
+        value={props.value}
+        checked={props.checked}
+        disabled={props.disabled}
+        onChange={() => props.onSelect(props.value)}
+      />
+      <OrgAvatar slug={props.value} name={props.name} />
+      <span className="min-w-0">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-base font-medium text-ink">
+            {props.name}
+          </span>
+          {props.tag && <RowTag label={props.tag} />}
+        </span>
+        <span className="mt-0.5 block text-[13px] leading-snug text-ink-muted tabular-nums">
+          {props.meta}
+        </span>
+      </span>
+      <span
+        aria-hidden
+        data-checked={props.checked || undefined}
+        className={cn(
+          "plan-briefing-tick grid size-5.5 place-items-center rounded-full outline outline-2 -outline-offset-2 outline-line-input",
+          props.checked && "bg-ink outline-0",
+        )}
+      >
+        <Check className="size-3.5 text-dialog" strokeWidth={3} />
+      </span>
+    </label>
+  );
+}
+
+export function RowTag({ label }: { label: string }) {
+  return (
+    <span className="shrink-0 rounded-full bg-chip-solid px-2 py-0.5 text-[11px] font-medium leading-4 text-ink">
+      {label}
+    </span>
+  );
+}
+
+/** A payer's two steps: the active one wider and in ink. */
+export function PickerProgress({ step }: { step: 1 | 2 }) {
+  const { t } = useTranslation("plan");
+  return (
+    <div className="mb-4 flex gap-1.5">
+      {[1, 2].map((one) => (
+        <span
+          key={one}
+          aria-hidden
+          className={cn(
+            "h-1 w-6 rounded-full bg-line",
+            one === step && "w-9 bg-ink",
+          )}
+        />
+      ))}
+      <span className="sr-only">{t("choice.picker.step", { step })}</span>
+    </div>
+  );
+}

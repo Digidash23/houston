@@ -129,5 +129,97 @@
       "creatorPlan": "This routine runs on its creator's Free plan, which limits how often it can run."
     },
     "purchaseLinkTitle": "This link isn't available in the app"
+  },
+  "choice": {
+    "notice": {
+      "title": "Teams are out of beta",
+      "from": "From {{date}}",
+      "thanks": "Thanks for helping us shape how teams work in Houston.",
+      "team": {
+        "title": "Every space works like a team",
+        "any": "Personal and team spaces become the same thing, so you can invite people to any of them.",
+        "named": "Personal and team spaces become the same thing, so you can invite people to {{name}}."
+      },
+      "oneFree": {
+        "title": "One free organization per account",
+        "body": "It keeps working the way it does today."
+      },
+      "pick": {
+        "title": "Pick the one to keep free",
+        "body": "Made a few just to try things? Choose yours and we'll handle the rest."
+      },
+      "moves": {
+        "title": "Your subscription comes with you",
+        "body": "Pick the organization that stays free and the one your subscription pays for."
+      },
+      "staysFree": "{{name}} stays free",
+      "paysFor": "Your subscription pays for {{name}}",
+      "nothingToDo": "Nothing to do. It keeps working the way it does today.",
+      "member": {
+        "title": "Nothing to do on your side",
+        "body": "The teams you're in keep working like today."
+      },
+      "choose": "Choose my free organization",
+      "gotIt": "Got it",
+      "close": "Close"
+    },
+    "picker": {
+      "title": "Which organization stays free?",
+      "mostActive": "Most active",
+      "personal": "Personal",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "messages_one": "{{count}} message in the last 30 days",
+      "messages_other": "{{count}} messages in the last 30 days",
+      "noMessages": "No messages in the last 30 days",
+      "meta": "{{first}} · {{second}}",
+      "keep": "Keep <name/> free",
+      "close": "Close",
+      "step": "Step {{step}} of 2",
+      "next": "Next",
+      "pickOne": "Pick an organization"
+    },
+    "payer": {
+      "title": "Which one does your subscription pay for?",
+      "each": "{{price}} each",
+      "free": "Free",
+      "staysFree": "Stays free",
+      "grace": "Your price stays {{today}} a month until {{date}}, then it's {{monthly}} a month.",
+      "noGrace": "Your price stays {{monthly}} a month.",
+      "back": "Back",
+      "use": "Pay for <name/>"
+    },
+    "done": {
+      "title": "{{name}} stays free",
+      "sub": "Here's how your organizations look from {{date}}.",
+      "status": {
+        "free": "Free",
+        "subscription": "Your subscription",
+        "needs_plan": "Needs a plan"
+      },
+      "change": "You can change this in Settings.",
+      "close": "Done"
+    },
+    "refused": {
+      "not_owner": {
+        "title": "You don't own that organization",
+        "body": "Only its owner can choose for it. Pick one of yours."
+      },
+      "not_payer": {
+        "title": "There's no subscription to move",
+        "body": "Choose only the organization that stays free."
+      },
+      "same_org": {
+        "title": "Pick two different organizations",
+        "body": "The free organization can't also be the one your subscription pays for."
+      }
+    },
+    "settings": {
+      "title": "Choose your free organization",
+      "pending": "Plans move to organizations on {{date}}. Pick the one that stays free.",
+      "picked": "{{name}} stays free from {{day}}.",
+      "choose": "Choose",
+      "change": "Change"
+    }
   }
 }

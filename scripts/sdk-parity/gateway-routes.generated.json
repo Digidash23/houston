@@ -573,6 +573,14 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/me/billing-choice",
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/me/onboarding",
     "methods": [
       "GET",
@@ -1225,6 +1233,13 @@
   },
   {
     "pattern": "/v1/local-model-bridges/{id}/sessions",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/billing-choice/dismiss",
     "methods": [
       "POST"
     ],

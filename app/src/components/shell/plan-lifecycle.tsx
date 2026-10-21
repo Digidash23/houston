@@ -1,4 +1,4 @@
-import { planDialog } from "@houston/sdk";
+import { planDialog, planDialogBlocks } from "@houston/sdk";
 import {
   Button,
   Dialog,
@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@houston-ai/core";
 import { cronSummary } from "@houston-ai/routines";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useKeepRoutine,
@@ -19,15 +19,14 @@ import {
 } from "../../hooks/queries/use-plan";
 import { usePlusCheckoutWatcher } from "../../hooks/queries/use-plus-checkout";
 import { useCapabilities } from "../../hooks/use-capabilities";
+import { usePlanPresence } from "../../hooks/use-plan-presence";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
-import { logAndReportError } from "../../lib/error-report";
-import { markPlanPresence, planPresenceDue } from "../../lib/plan-session";
 import {
   canPurchaseInApp,
   storeSafePlanDialog,
 } from "../../lib/purchase-policy";
-import { tauriOrg } from "../../lib/tauri";
 import { useUIStore } from "../../stores/ui";
+import { BillingChangeModal } from "./billing-change-modal";
 import { PlanAnnouncementDialog } from "./plan-announcement-dialog";
 import { PlanWebNote } from "./plan-web-note";
 import { createUserDismissal } from "./user-dismissal";
@@ -35,8 +34,10 @@ import { createUserDismissal } from "./user-dismissal";
 export function PlanLifecycle() {
   const { t } = useTranslation("plan");
   const { capabilities } = useCapabilities();
-  const { data: plan } = usePlan();
+  const planQuery = usePlan();
+  const plan = planQuery.data;
   const [resumeDismissed, setResumeDismissed] = useState(false);
+  const [announcementClosed, setAnnouncementClosed] = useState(false);
   const [keepDismissed, setKeepDismissed] = useState(false);
   const keepRequested = useUIStore((s) => s.planKeepDialogOpen);
   const setKeepRequested = useUIStore((s) => s.setPlanKeepDialogOpen);
@@ -56,27 +57,7 @@ export function PlanLifecycle() {
     setKeepRequested(false);
   };
 
-  useEffect(() => {
-    if (capabilities?.plan !== true) return;
-    const report = () => {
-      if (
-        document.visibilityState !== "visible" ||
-        !planPresenceDue(Date.now())
-      )
-        return;
-      markPlanPresence(Date.now());
-      void tauriOrg
-        .reportPresence()
-        .catch((error: unknown) => logAndReportError("report_presence", error));
-    };
-    report();
-    document.addEventListener("visibilitychange", report);
-    window.addEventListener("focus", report);
-    return () => {
-      document.removeEventListener("visibilitychange", report);
-      window.removeEventListener("focus", report);
-    };
-  }, [capabilities?.plan]);
+  usePlanPresence(capabilities?.plan === true);
 
   return (
     <>
@@ -189,8 +170,18 @@ export function PlanLifecycle() {
         </DialogContent>
       </Dialog>
       {plan?.announcement && (
-        <PlanAnnouncementDialog plan={plan} open={dialog === "announcement"} />
+        <PlanAnnouncementDialog
+          plan={plan}
+          open={dialog === "announcement" && !announcementClosed}
+          onDismiss={() => setAnnouncementClosed(true)}
+        />
       )}
+      <BillingChangeModal
+        otherDialogOpen={planDialogBlocks(dialog, {
+          planLoading: planQuery.isLoading,
+          announcementClosed,
+        })}
+      />
     </>
   );
 }
