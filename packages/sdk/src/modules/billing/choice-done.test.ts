@@ -3,11 +3,19 @@ import type { BillingChoiceSave } from "./choice";
 import {
   CLOSED_CHOICE_PICKER,
   choiceDone,
+  choicePickerEntry,
   choicePickerSaved,
   closeChoicePicker,
   openChoicePicker,
 } from "./choice-done";
-import { CUTOVER, choice, INNOVA, LA_FILA, PERSONAL } from "./choice-fixtures";
+import {
+  BEFORE,
+  CUTOVER,
+  choice,
+  INNOVA,
+  LA_FILA,
+  PERSONAL,
+} from "./choice-fixtures";
 
 const saved = (patch: Parameters<typeof choice>[0]): BillingChoiceSave => ({
   kind: "saved",
@@ -100,5 +108,35 @@ describe("the picker opened from Settings", () => {
     expect(choicePickerSaved(CLOSED_CHOICE_PICKER, stored)).toBe(
       CLOSED_CHOICE_PICKER,
     );
+  });
+});
+
+describe("the Settings entry", () => {
+  // A save just before the window closes: the stored pick, and a later now.
+  const stored = choice({
+    freeOrgSlug: INNOVA.slug,
+    changeableUntil: "2026-10-21T00:00:00.000Z",
+  });
+  const after = Date.parse("2026-10-21T00:00:01.000Z");
+  const doneFrame = choicePickerSaved(openChoicePicker(), {
+    kind: "saved",
+    choice: stored,
+  });
+
+  it("offers the picker while the pick may still change", () => {
+    expect(choicePickerEntry(stored, BEFORE, CLOSED_CHOICE_PICKER)).toBe("row");
+    expect(choicePickerEntry(stored, BEFORE, doneFrame)).toBe("row");
+  });
+
+  it("keeps an open confirmation past the deadline, until it is closed", () => {
+    expect(doneFrame.done).not.toBeNull();
+    expect(choicePickerEntry(stored, after, doneFrame)).toBe("frame");
+    const shut = closeChoicePicker(doneFrame);
+    expect(choicePickerEntry(stored, after, shut)).toBe("none");
+  });
+
+  it("offers nothing past the deadline, or without a choice", () => {
+    expect(choicePickerEntry(stored, after, CLOSED_CHOICE_PICKER)).toBe("none");
+    expect(choicePickerEntry(null, BEFORE, openChoicePicker())).toBe("none");
   });
 });

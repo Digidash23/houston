@@ -284,6 +284,44 @@ test("a pick from Billing ends on the success step, and the modal stays gone", a
   await expect(choiceModal(page)).toBeHidden();
 });
 
+test("a pick from Billing just before the window closes keeps its success step", async ({
+  page,
+}) => {
+  await armCapabilities({ ...SPACES_OWNER_CAPS, plan: true });
+  await armPlan({ summary: freePlan() });
+  // The window closes five minutes after the page clock starts.
+  await armChoice(ownerChoice({ changeableUntil: "2026-10-20T17:05:00.000Z" }));
+  await page.goto("/");
+  await choiceModal(page)
+    .getByRole("button", { name: "Maybe later" })
+    .first()
+    .click({ timeout: 15_000 });
+
+  await openBilling(page);
+  await billingScreen(page).getByRole("button", { name: "Choose" }).click();
+  const picker = settingsPicker(page);
+  await picker.getByRole("button", { name: "Keep La Fila free" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "La Fila stays free" }),
+  ).toBeVisible();
+
+  await page.clock.runFor("06:00");
+  // The row goes with the window; the confirmation stays until it is closed.
+  await expect(
+    billingScreen(page).getByRole("heading", {
+      name: "Choose your free organization",
+    }),
+  ).toBeHidden();
+  await expect(
+    page.getByRole("dialog", { name: "La Fila stays free" }),
+  ).toBeVisible();
+  await picker.getByRole("button", { name: "Done" }).click();
+  await expect(picker).toBeHidden();
+  await expect(
+    billingScreen(page).getByRole("heading", { level: 1 }),
+  ).toBeFocused();
+});
+
 test("closing with the X is also Maybe later for an owner who has to pick", async ({
   page,
 }) => {

@@ -1,6 +1,6 @@
 import type { BillingChoice, BillingChoiceOrg } from "@houston/wire-types";
 import type { BillingChoiceSave } from "./choice";
-import { choosesPaidOrg } from "./choice-model";
+import { canChangeChoice, choosesPaidOrg } from "./choice-model";
 
 /**
  * What the picker's success step says once a pick is stored. `payer`: the
@@ -83,4 +83,23 @@ export function choicePickerSaved(
   if (!frame.open || frame.done || outcome.kind !== "saved") return frame;
   const done = choiceDone(outcome.choice);
   return done ? { open: true, done } : frame;
+}
+
+/**
+ * What Settings > Billing shows for the pick. `row`: the entry that opens the
+ * picker, while the pick may still change ({@link canChangeChoice}). `frame`:
+ * the window closed while the picker or its success step was open, so only
+ * that frame stays, until the person closes it; a save just before the
+ * deadline keeps its confirmation. `none`: nothing.
+ */
+export type ChoicePickerEntry = "row" | "frame" | "none";
+
+export function choicePickerEntry(
+  choice: BillingChoice | null | undefined,
+  now: number,
+  frame: ChoicePickerFrame,
+): ChoicePickerEntry {
+  if (!choice) return "none";
+  if (canChangeChoice(choice, now)) return "row";
+  return frame.open ? "frame" : "none";
 }

@@ -1,4 +1,5 @@
 import { Button, Skeleton } from "@houston-ai/core";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { usePlan, usePlusPortal } from "../../../hooks/queries/use-plan";
 import { usePlusCheckout } from "../../../hooks/queries/use-plus-checkout";
@@ -16,10 +17,18 @@ export function PlanSection() {
   const checkout = usePlusCheckout();
   const portal = usePlusPortal();
   const openSettings = useUIStore((s) => s.openSettings);
+  // Where a closed free-org picker returns focus once its row is gone.
+  const heading = useRef<HTMLHeadingElement>(null);
   return (
     <section className="space-y-5 py-6 text-ink md:space-y-6">
       <header className="space-y-2 pb-2">
-        <h1 className="text-2xl font-normal text-balance">{t("title")}</h1>
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className="text-2xl font-normal text-balance outline-none"
+        >
+          {t("title")}
+        </h1>
         <p className="text-sm text-ink-muted">
           {t("questions")}{" "}
           <Button
@@ -31,7 +40,7 @@ export function PlanSection() {
           </Button>
         </p>
       </header>
-      <FreeOrgChoiceRow />
+      <FreeOrgChoiceRow fallbackFocus={heading} />
       {isLoading ? (
         <div className="space-y-5" role="status" aria-label={t("loading")}>
           <Skeleton className="h-28 w-full rounded-xl" />
