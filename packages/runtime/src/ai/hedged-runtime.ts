@@ -8,10 +8,19 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { config } from "../config";
 import { FIRST_BYTE_EXTRA_ATTEMPTS, firstByteDeadlineMs } from "./first-byte";
 import { hedgedStream } from "./hedged-stream";
+import { estimatePromptTokens } from "./prompt-tokens";
 
 type StreamSimpleOptions = Parameters<ModelRuntime["streamSimple"]>[2];
 
+/** A request as the hedge sent it: its provider and the size of its prompt. */
+export interface SentRequestSize {
+  provider: string;
+  promptTokens: number;
+}
+
 export interface HedgeObserver {
+  /** A request went out, before any of its attempts. */
+  sent?(request: SentRequestSize): void;
   /** A request's response opened, `afterMs` after its first attempt. */
   answered?(afterMs: number, attempt: number): void;
   /** Another attempt of a request went out. */
@@ -20,9 +29,9 @@ export interface HedgeObserver {
 
 /**
  * `runtime` with every session request hedged (ai/hedged-stream.ts): a
- * request whose response has not opened within the provider's first-byte
- * deadline (ai/first-byte.ts) goes out again, at most twice, and the first
- * answer wins. pi sends each agent request through
+ * request whose response has not opened within the first-byte deadline for
+ * its provider and prompt size (ai/first-byte.ts) goes out again, at most
+ * twice, and the first answer wins. pi sends each agent request through
  * `modelRuntime.streamSimple`, so this is the one seam; every other method
  * (model resolution, compaction's own calls) runs unchanged on `runtime`.
  *
@@ -32,19 +41,26 @@ export interface HedgeObserver {
 export function hedgedModelRuntime(
   runtime: ModelRuntime,
   observer: HedgeObserver = {},
-  deadlineFor: (provider: string) => number = (provider) =>
-    firstByteDeadlineMs(provider, config.turnFirstByteDeadlineMs),
+  deadlineFor: (provider: string, promptTokens: number) => number = (
+    provider,
+    promptTokens,
+  ) =>
+    firstByteDeadlineMs(provider, config.turnFirstByteDeadlineMs, promptTokens),
 ): ModelRuntime {
   const streamSimple = (
     model: Model<Api>,
     context: Context,
     options?: StreamSimpleOptions,
   ): AssistantMessageEventStream => {
+    const promptTokens = estimatePromptTokens(context);
+    observer.sent?.({ provider: model.provider, promptTokens });
     // pi's own provider-level retry (`retry.provider.maxRetries`, 0 unless a
     // settings file raises it) can sleep out a 429's Retry-After before any
     // event: that wait is not silence, so such a request is never hedged.
     const deadlineMs =
-      (options?.maxRetries ?? 0) > 0 ? 0 : deadlineFor(model.provider);
+      (options?.maxRetries ?? 0) > 0
+        ? 0
+        : deadlineFor(model.provider, promptTokens);
     const target = `provider=${model.provider} model=${model.id}`;
     let hedges = 0;
     // Unhedged, the same race with no extra attempt still reports the first

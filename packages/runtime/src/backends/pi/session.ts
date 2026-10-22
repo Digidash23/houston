@@ -5,11 +5,11 @@ import type {
   ForcedToolCall,
   ForcedToolCallRequest,
 } from "../forced-tool-call";
+import type { ModelPhase } from "../model-phase";
 import type {
   CompactionOutcome,
   HarnessSession,
   HarnessTimingEvent,
-  ModelPhase,
   ReplyBeat,
   ResolvedModel,
   ThinkingLevel,
@@ -22,6 +22,7 @@ import {
 } from "./forced-tool-call";
 import { planForcedToolCall } from "./forced-tool-choice";
 import { createPiCallTimer } from "./model-calls";
+import { type SentRequests, subscribePiModelPhase } from "./model-phase";
 import { createReplyBeatReader } from "./reply-beats";
 import { createWireTranslator } from "./wire";
 
@@ -43,7 +44,11 @@ export class PiSession implements HarnessSession {
   /** Timing listeners for forced calls, which pi's events never carry. */
   private readonly forcedCalls = new Set<(e: HarnessTimingEvent) => void>();
 
-  constructor(private readonly session: AgentSession) {
+  constructor(
+    private readonly session: AgentSession,
+    /** What the session's hedged model runtime sends (backend.ts). */
+    private readonly requests: SentRequests,
+  ) {
     captureSentRequests(session, (sent) => {
       this.sent = sent;
     });
@@ -88,32 +93,9 @@ export class PiSession implements HarnessSession {
     });
   }
 
-  /**
-   * pi's round-trip boundaries as `ModelPhase`s. `turn_start` precedes each
-   * request, and the assistant `message_start` fires when the provider's
-   * response opens (its headers, or the first stream event): between the two
-   * the request is out and unanswered. An auto-retry is a request that goes
-   * out after its backoff.
-   */
+  /** pi's round-trip boundaries as `ModelPhase`s (`subscribePiModelPhase`). */
   subscribeModelPhase(listener: (phase: ModelPhase) => void): () => void {
-    const provider = () => this.session.model?.provider ?? "";
-    return this.session.subscribe((e) => {
-      if (e.type === "turn_start")
-        listener({ phase: "requesting", provider: provider() });
-      else if (e.type === "auto_retry_start")
-        listener({
-          phase: "requesting",
-          provider: provider(),
-          afterMs: e.delayMs,
-        });
-      else if (e.type === "message_start" && e.message.role === "assistant")
-        listener({ phase: "responding" });
-      else if (
-        (e.type === "message_end" && e.message.role === "assistant") ||
-        e.type === "compaction_start"
-      )
-        listener({ phase: "idle" });
-    });
+    return subscribePiModelPhase(this.session, this.requests, listener);
   }
 
   /** One timing per answered request (`createPiCallTimer`); pi is in-process,

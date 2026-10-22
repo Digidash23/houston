@@ -9,7 +9,9 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { WireEvent } from "@houston/runtime-client";
 import { expect, test } from "vitest";
-import type { ModelPhase, ResolvedModel, ThinkingLevel } from "../types";
+import type { ModelPhase } from "../model-phase";
+import type { ResolvedModel, ThinkingLevel } from "../types";
+import { SentRequests } from "./model-phase";
 import { PiSession } from "./session";
 
 /**
@@ -131,9 +133,11 @@ class StubAgentSession {
   }
 }
 
-function make(): { stub: StubAgentSession; session: PiSession } {
+function make() {
   const stub = new StubAgentSession();
-  return { stub, session: new PiSession(stub as unknown as AgentSession) };
+  const requests = new SentRequests();
+  const session = new PiSession(stub as unknown as AgentSession, requests);
+  return { stub, session, hedge: requests.observe() };
 }
 
 test("subscribe maps text/thinking/tool events to the exact WireEvents", () => {
@@ -365,4 +369,31 @@ test("subscribeModelPhase marks each request, its response, and the gaps between
   unsub();
   emit({ type: "turn_start" });
   expect(phases).toHaveLength(5);
+});
+
+test("a request's phase carries the size the hedge sent, in pi's event order", () => {
+  const { stub, session, hedge } = make();
+  const phases: ModelPhase[] = [];
+  session.subscribeModelPhase((p) => phases.push(p));
+  const user = { role: "user", content: "x".repeat(3_200_000), timestamp: 0 };
+  const assistant = assistantMessage(usage({}));
+  const emit = (e: unknown) => stub.emit(e as AgentSessionEvent);
+
+  // pi announces the turn before it appends the prompt...
+  emit({ type: "turn_start" });
+  emit({ type: "message_start", message: user });
+  emit({ type: "message_end", message: user });
+  // ...so only the hedge, sending the request pi built, knows its size.
+  hedge.sent?.({ provider: "opencode", promptTokens: 801_000 });
+  emit({ type: "message_start", message: assistant });
+  emit({ type: "message_end", message: assistant });
+  // A request outside the turn (a forced tool call) moves no phase.
+  hedge.sent?.({ provider: "opencode", promptTokens: 801_500 });
+
+  expect(phases).toEqual([
+    { phase: "requesting", provider: "opencode" },
+    { phase: "requesting", provider: "opencode", promptTokens: 801_000 },
+    { phase: "responding" },
+    { phase: "idle" },
+  ]);
 });

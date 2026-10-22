@@ -13,6 +13,7 @@ import { toSdkModel } from "./model";
 import type { ClaudeSessionDeps } from "./session-deps";
 import { SessionEventSubscriptions } from "./session-events";
 import { runTurnAttempt, type TurnAttemptState } from "./session-turn-attempt";
+import { claudeTurnPromptTokens } from "./turn-prompt-size";
 
 export type { ClaudeQuery, ClaudeSessionDeps, TurnAuth } from "./session-deps";
 
@@ -50,7 +51,7 @@ export class ClaudeSession
 
   /**
    * The digest of the OAuth access token this session's next spawn runs on
-   * (build-time until the first prompt, then each prompt's `refreshAuth` read).
+   * (build-time until the first prompt, then each attempt's `refreshAuth` read).
    * The conversation cache compares it against the CURRENTLY stored credential
    * to rebuild sessions left on a rotated-out token (PRODUCT-1355 layer 2).
    */
@@ -60,24 +61,19 @@ export class ClaudeSession
 
   async prompt(text: string): Promise<void> {
     if (this.disposed) return;
-    // Fresh credential per turn (PRODUCT-1355): every `query()` spawns its own
-    // SDK subprocess, so re-reading here means this turn runs on the token the
-    // store holds NOW — a reconnect or the gateway's rotation lands on the very
-    // next turn instead of never. The digest follows the env so a revoked-token
-    // report names the token this turn actually ran on (PRODUCT-1319).
-    const auth = this.deps.refreshAuth();
-    this.usedAccessDigest = auth.accessDigest;
     const checkpoint = this.compactions.read(this.deps.conversationId);
     const resume = checkpoint
       ? undefined
       : this.deps.sessionsStore.resolveResume(this.deps.conversationId);
     const prompt = `${checkpoint ? compactedPreamble(checkpoint.summary) : ""}${text}`;
+    const fill = resume === undefined ? undefined : this.knownFill();
     let outcome = await runTurnAttempt(this.attemptState(), {
       text: prompt,
       resume,
-      env: auth.env,
+      promptTokens: claudeTurnPromptTokens(fill, prompt),
     });
     if (outcome === "retry-fresh") {
+      if (this.disposed || this.aborting) return;
       // The SDK refused the resume id (its cwd-scoped lookup missed the
       // transcript — e.g. the workspace was renamed), or resumed it with
       // Houston's tool server detached (PRODUCT-1706). The stale mapping is
@@ -86,10 +82,11 @@ export class ClaudeSession
       console.warn(
         `[claude] resume for conversation ${this.deps.conversationId} ${this.retryReason}; starting a fresh session`,
       );
+      const retryText = `${this.deps.freshRetryPromptPrefix?.() ?? ""}${prompt}`;
       outcome = await runTurnAttempt(this.attemptState(), {
-        text: `${this.deps.freshRetryPromptPrefix?.() ?? ""}${prompt}`,
+        text: retryText,
         resume: undefined,
-        env: auth.env,
+        promptTokens: claudeTurnPromptTokens(undefined, retryText),
       });
     }
     if (outcome === "success" && checkpoint)
@@ -102,7 +99,6 @@ export class ClaudeSession
       deps: this.deps,
       model: this.model,
       thinkingLevel: this.thinkingLevel,
-      usedAccessDigest: this.usedAccessDigest,
       beginAttempt: (controller) => {
         this.aborting = false;
         this.abortController = controller;
@@ -110,6 +106,9 @@ export class ClaudeSession
       isAborting: () => this.aborting,
       setContextTokens: (tokens) => {
         this.contextTokens = tokens;
+      },
+      setUsedAccessDigest: (digest) => {
+        this.usedAccessDigest = digest;
       },
       setRetryReason: (reason) => {
         this.retryReason = reason;
@@ -152,7 +151,8 @@ export class ClaudeSession
     customInstructions?: string,
   ): Promise<CompactionOutcome | undefined> {
     if (this.disposed) return undefined;
-    const auth = this.deps.refreshAuth();
+    // The summary request carries the whole conversation.
+    const auth = this.deps.refreshAuth(this.knownFill());
     this.usedAccessDigest = auth.accessDigest;
     // Registered as the session's controller so the user's Stop (and dispose)
     // cancels a summarization that is still running.
@@ -177,6 +177,11 @@ export class ClaudeSession
     // honest answer, and the one a fresh session starts from.
     this.contextTokens = undefined;
     return outcome;
+  }
+
+  /** The context fill measured in this process, else the one recorded. */
+  private knownFill(): number | undefined {
+    return this.contextTokens ?? this.deps.recordedContextTokens?.();
   }
 
   setThinkingLevel(level: ThinkingLevel): void {

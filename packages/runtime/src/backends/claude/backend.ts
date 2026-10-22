@@ -109,13 +109,13 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
       // Bun-compiled desktop sidecar, where require.resolve can't reach it.
       const pathToClaudeCodeExecutable = resolveClaudeExecutable();
       // The subprocess env, rebuilt from a FRESH credential read on every call.
-      // The session invokes this at the start of each prompt (PRODUCT-1355):
-      // the SDK spawns one subprocess per `query()`, so per-turn env is the
+      // The session invokes this at the start of each attempt (PRODUCT-1355):
+      // the SDK spawns one subprocess per `query()`, so per-attempt env is the
       // seam that lets a session follow the gateway's token rotation instead of
       // 401ing forever on the token it was built with. Re-asserting the scope
       // guard keeps a personal turn whose token vanished a typed refusal, never
       // a silent fall-through onto the pod-shared (team) credential.
-      const refreshAuth = () => {
+      const refreshAuth = (promptTokens?: number) => {
         const fresh = deps.readToken();
         assertAnthropicScopeCredential(fresh);
         return {
@@ -126,13 +126,14 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
             credentialStorageDir: deps.layout.credentialStorageDir,
             homeDir: deps.layout.homeDir,
             filesStillLanding: deps.beforeTool !== undefined,
+            promptTokens,
           }),
           accessDigest: fresh?.accessDigest,
         };
       };
       // One coherent build-time read for the env AND the digest (the top-of-
       // function `token` read predates the SDK import await, so it is not
-      // reused here). Every prompt overrides both with its own fresh read.
+      // reused here). Every attempt overrides both with its own fresh read.
       const initialAuth = refreshAuth();
       const baseOptions: Options = {
         cwd: deps.workspaceDir,
@@ -181,10 +182,11 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
         model: toSdkModel(opts.model.id),
         thinkingLevel: opts.thinkingLevel,
         freshRetryPromptPrefix: opts.freshRetryPromptPrefix,
+        recordedContextTokens: opts.recordedContextTokens,
         refreshAuth,
         // WHICH token the subprocess env carries, for the revoked-token
-        // report (PRODUCT-1319) — updated by refreshAuth on every prompt so it
-        // always names the token the current turn runs on (PRODUCT-1355).
+        // report (PRODUCT-1319) — updated by refreshAuth on every attempt so it
+        // always names the token the current attempt runs on (PRODUCT-1355).
         usedAccessDigest: initialAuth.accessDigest,
       });
     },

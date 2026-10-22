@@ -1,7 +1,6 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { runWithActingContext } from "../../session/acting-context";
 import type { ResolvedModel } from "../types";
@@ -12,16 +11,16 @@ import {
   createClaudeBackend,
 } from "./backend";
 import { claudeLoginConfigDir, serverClaudeLayout } from "./paths";
+import type { ClaudeSessionDeps } from "./session-deps";
 
 // Capture the deps the backend hands a session WITHOUT running the SDK: the
 // whole point of the scope guard is that a refused turn never builds an env at
 // all, so "was a session constructed, and with which env" is the assertion —
 // plus, since PRODUCT-1355, "does its refreshAuth re-read the CURRENT token".
-type CapturedDeps = {
-  baseOptions: Options;
-  refreshAuth: () => { env: Record<string, string>; accessDigest?: string };
-  usedAccessDigest?: string;
-};
+type CapturedDeps = Pick<
+  ClaudeSessionDeps,
+  "baseOptions" | "refreshAuth" | "recordedContextTokens" | "usedAccessDigest"
+>;
 const { built } = vi.hoisted(() => ({ built: [] as CapturedDeps[] }));
 vi.mock("./session", () => ({
   ClaudeSession: class {
@@ -281,6 +280,18 @@ test("the session's refreshAuth re-reads the CURRENT token — a rotation betwee
   const fresh = built[0]?.refreshAuth();
   expect(fresh?.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-new");
   expect(fresh?.accessDigest).toBe("digest-new");
+});
+
+test("the session's refreshAuth sizes the CLI's first-byte deadline for the prompt it is given", async () => {
+  const backend = createClaudeBackend(backendDeps(() => oauth));
+  await backend.createSession({
+    conversationId: "c1",
+    model: MODEL,
+    recordedContextTokens: () => 640_000,
+  });
+  expect(built[0]?.refreshAuth().env.API_TIMEOUT_MS).toBe("15000");
+  expect(built[0]?.refreshAuth(800_000).env.API_TIMEOUT_MS).toBe("55000");
+  expect(built[0]?.recordedContextTokens?.()).toBe(640_000);
 });
 
 test("refreshAuth re-asserts the personal-scope guard: a token that vanished mid-conversation refuses the turn, never falls through to the team dir", async () => {

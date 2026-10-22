@@ -8,7 +8,7 @@ import type {
   WireEvent,
 } from "@houston/runtime-client";
 import { DEFAULT_REASONING_EFFORT, toThinkingLevel } from "../ai/effort";
-import { unansweredWindowMs } from "../ai/first-byte";
+import { unansweredWindows } from "../ai/first-byte";
 import {
   learnCustomContextWindow,
   OPENAI_COMPATIBLE,
@@ -274,8 +274,7 @@ export async function execTurn(
   const interaction = newInteractionHolder();
   const watchdog = createStallWatchdog({
     timeoutMs: config.turnStallTimeoutMs,
-    firstResponseMs: (provider) =>
-      unansweredWindowMs(provider, config.turnFirstByteDeadlineMs),
+    firstResponseMs: unansweredWindows(config.turnFirstByteDeadlineMs),
     onStall: (reason, windowMs) => {
       stalled = { reason, windowMs };
       // The only log line a watchdog cut leaves: pi's echo below is logged as
