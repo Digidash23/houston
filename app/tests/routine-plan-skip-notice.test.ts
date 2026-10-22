@@ -4,7 +4,7 @@ import {
   type TriggerPlanSkipNotice,
   triggerPlanSkipNotice,
 } from "@houston/sdk";
-import type { PlanSummary, TriggerPlanSkipCode } from "@houston/wire-types";
+import type { OrgBilling, TriggerPlanSkipCode } from "@houston/wire-types";
 import en from "../src/locales/en/plan.json" with { type: "json" };
 import es from "../src/locales/es/plan.json" with { type: "json" };
 import pt from "../src/locales/pt/plan.json" with { type: "json" };
@@ -21,16 +21,20 @@ let render: (
   language?: Language,
 ) => Promise<string>;
 
-const free: PlanSummary = {
-  plan: "free",
-  announcement: false,
-  plus: {
-    status: "none",
-    manageable: false,
-    price: { amount: 1500, currency: "usd", interval: "month" },
-  },
+const free: OrgBilling = {
+  tier: "free",
+  status: "active",
+  lockAt: null,
+  lockReason: null,
+  freeSlot: true,
+  isBillingOwner: true,
+  seats: 1,
+  seatPriceCents: 1500,
+  seatGraceEndsAt: null,
+  usage: null,
   routines: {
     paused: false,
+    kept: null,
     maxActive: 1,
     minIntervalMinutes: 15,
     needsChoice: false,
@@ -42,12 +46,13 @@ const creator: TriggerPlanSkipViewer = {
   createdBy: "u1",
   viewerId: "u1",
   agentSlug: "agent-a",
+  plusOffer: true,
 };
 
 function noticeFor(
   code: TriggerPlanSkipCode,
   count: number,
-  plan: PlanSummary = free,
+  plan: OrgBilling = free,
   viewer: TriggerPlanSkipViewer = creator,
 ): TriggerPlanSkipNotice {
   const notice = triggerPlanSkipNotice(
@@ -110,6 +115,31 @@ describe("RoutinePlanSkipNoticeView", () => {
     ok(!html.includes(en.resume), html);
   });
 
+  it("names no Plus where it would not pay for the org", async () => {
+    const team = { ...creator, plusOffer: false };
+    for (const code of ["plan_min_interval", "plan_routine_limit"] as const) {
+      const html = await render(noticeFor(code, 2, free, team));
+      ok(!html.includes("Plus"), html);
+    }
+    const limit = await render(noticeFor("plan_routine_limit", 2, free, team));
+    ok(limit.includes(en.chooseRoutine), limit);
+    ok(!limit.includes(en.upgrade), limit);
+  });
+
+  it("says a locked org's routines wait for it to be paid for", async () => {
+    const locked: OrgBilling = {
+      ...free,
+      status: "locked",
+      lockAt: "2026-10-01T00:00:00Z",
+      lockReason: "migration",
+    };
+    const html = await render(
+      noticeFor("plan_inactive", 2, locked, { ...creator, plusOffer: false }),
+    );
+    ok(html.includes(en.triggerSkipped.orgLocked), html);
+    ok(!html.includes(en.resume), html);
+  });
+
   it("uses the singular for one event", async () => {
     const html = await render(noticeFor("plan_min_interval", 1));
     ok(html.includes("1 run of this routine was skipped"), html);
@@ -153,7 +183,7 @@ describe("RoutinePlanSkipNoticeView", () => {
       noticeFor(
         "plan_routine_limit",
         4,
-        { ...free, plan: "plus" },
+        { ...free, tier: "paid", usage: null, routines: null },
         {
           ...creator,
           viewerId: "u2",
@@ -218,7 +248,7 @@ describe("RoutinePlanSkipNoticeView inside a store app", () => {
       noticeFor(
         "plan_routine_limit",
         4,
-        { ...free, plan: "plus" },
+        { ...free, tier: "paid", usage: null, routines: null },
         { ...creator, viewerId: "u2" },
       ),
     );

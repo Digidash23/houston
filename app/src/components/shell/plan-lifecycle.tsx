@@ -1,4 +1,8 @@
-import { planDialog, planDialogBlocks } from "@houston/sdk";
+import {
+  planAnnouncementDue,
+  planDialog,
+  planDialogBlocks,
+} from "@houston/sdk";
 import {
   Button,
   Dialog,
@@ -11,6 +15,7 @@ import {
 import { cronSummary } from "@houston-ai/routines";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useActiveOrgBilling } from "../../hooks/queries/use-billing";
 import {
   useKeepRoutine,
   usePlan,
@@ -21,14 +26,12 @@ import { usePlusCheckoutWatcher } from "../../hooks/queries/use-plus-checkout";
 import { useCapabilities } from "../../hooks/use-capabilities";
 import { usePlanPresence } from "../../hooks/use-plan-presence";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
-import {
-  canPurchaseInApp,
-  storeSafePlanDialog,
-} from "../../lib/purchase-policy";
+import { storeSafePlanDialog } from "../../lib/purchase-policy";
 import { useUIStore } from "../../stores/ui";
 import { BillingChangeModal } from "./billing-change-modal";
 import { PlanAnnouncementDialog } from "./plan-announcement-dialog";
-import { PlanWebNote } from "./plan-web-note";
+import { PlanKeepFooter } from "./plan-keep-footer";
+import { useOrgDismissal } from "./use-org-dismissal";
 import { createUserDismissal } from "./user-dismissal";
 
 export function PlanLifecycle() {
@@ -36,13 +39,19 @@ export function PlanLifecycle() {
   const { capabilities } = useCapabilities();
   const planQuery = usePlan();
   const plan = planQuery.data;
-  const [resumeDismissed, setResumeDismissed] = useState(false);
+  const org = useActiveOrgBilling();
+  const [resumeDismissed, setResumeDismissed] = useOrgDismissal(org.orgSlug);
   const [announcementClosed, setAnnouncementClosed] = useState(false);
-  const [keepDismissed, setKeepDismissed] = useState(false);
+  const [keepDismissed, dismissKeep] = useOrgDismissal(org.orgSlug);
   const keepRequested = useUIStore((s) => s.planKeepDialogOpen);
   const setKeepRequested = useUIStore((s) => s.setPlanKeepDialogOpen);
   const dialog = storeSafePlanDialog(
-    planDialog(plan, resumeDismissed, keepDismissed, keepRequested),
+    planDialog(org.billing, {
+      resumeDismissed,
+      keepDismissed,
+      keepRequested,
+      announcement: planAnnouncementDue(plan),
+    }),
   );
   const routines = usePlanRoutines(dialog === "keep" || keepRequested);
   const resume = useResumeRoutines();
@@ -53,19 +62,17 @@ export function PlanLifecycle() {
   const [resumeDismissal] = useState(createUserDismissal);
   const [keepDismissal] = useState(createUserDismissal);
   const closeKeep = () => {
-    setKeepDismissed(true);
+    dismissKeep();
     setKeepRequested(false);
   };
 
-  usePlanPresence(capabilities?.plan === true);
+  usePlanPresence(capabilities?.plan === true, org.orgSlug);
 
   return (
     <>
       <Dialog
         open={dialog === "resume"}
-        onOpenChange={resumeDismissal.onOpenChange(() =>
-          setResumeDismissed(true),
-        )}
+        onOpenChange={resumeDismissal.onOpenChange(() => setResumeDismissed())}
       >
         <DialogContent
           {...resumeDismissal.contentProps}
@@ -77,7 +84,7 @@ export function PlanLifecycle() {
             <DialogDescription>{t("resumeBody")}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 md:flex-row">
-            <Button variant="outline" onClick={() => setResumeDismissed(true)}>
+            <Button variant="outline" onClick={() => setResumeDismissed()}>
               {t("notNow")}
             </Button>
             <Button disabled={resume.isPending} onClick={() => resume.mutate()}>
@@ -152,21 +159,14 @@ export function PlanLifecycle() {
               </div>
             ))}
           </div>
-          <DialogFooter>
-            {canPurchaseInApp() ? (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  closeKeep();
-                  openSettings("plan");
-                }}
-              >
-                {t("upgrade")}
-              </Button>
-            ) : (
-              <PlanWebNote variant="manage" />
-            )}
-          </DialogFooter>
+          <PlanKeepFooter
+            plusOffer={org.plusOffer}
+            onClose={closeKeep}
+            onUpgrade={() => {
+              closeKeep();
+              openSettings("plan");
+            }}
+          />
         </DialogContent>
       </Dialog>
       {plan?.announcement && (
@@ -178,7 +178,7 @@ export function PlanLifecycle() {
       )}
       <BillingChangeModal
         otherDialogOpen={planDialogBlocks(dialog, {
-          planLoading: planQuery.isLoading,
+          planLoading: planQuery.isLoading || org.isLoading,
           announcementClosed,
         })}
       />
