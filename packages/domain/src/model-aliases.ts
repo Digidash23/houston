@@ -68,8 +68,7 @@ export const MODEL_ALIASES: Partial<
     // does. The full tier is gpt-6-astra; the small/cheap tier is gpt-6-luna.
     // gpt-5.4 is a full-tier id OpenAI retired and gpt-5.5-codex is one that
     // never shipped — they belong here for the same reason the CLI-era ids do:
-    // a stored value that must land somewhere that runs. gpt-5.5 has NO row,
-    // because the subscription serves it and a pin on it must stay on it.
+    // a stored value that must land somewhere that runs.
     "gpt-5": "gpt-6-astra",
     "gpt-5-codex": "gpt-6-astra",
     "gpt-5.1": "gpt-6-astra",
@@ -83,6 +82,35 @@ export const MODEL_ALIASES: Partial<
     // Spark is a small/fast row the 2026-09-23 probe reads as refused, and
     // stored pins on it exist; gpt-6-luna is the small/fast tier it maps to.
     "gpt-5.3-codex-spark": "gpt-6-luna",
+    // Refused since 2026-10-22 and dropped by pi 1.4.0. The latest Sol is
+    // cheaper per token than gpt-5.5 and is the successor GitHub names for it.
+    "gpt-5.5": "gpt-6.1-sol",
+  },
+  // Rows GitHub retired from Copilot (2026-09-10 to 2026-10-19) and pi 1.4.0
+  // dropped, each mapped to the successor GitHub's retirement table names when
+  // it costs no more and stays on the same plan. GitHub names the latest Sol
+  // for gpt-5.4 and gpt-5.5, but Sol needs Copilot Pro+ while both ran on Pro,
+  // so they land on gpt-5.6-terra (Pro, cheaper than either). kimi-k2.7-code
+  // has no row: GitHub's successor, Kimi K3, costs about 3.5x more. Copilot is
+  // open in VALID_MODELS, so each entry is a rename.
+  "github-copilot": {
+    "gpt-5-mini": "gpt-6-luna",
+    "gpt-5.4-mini": "gpt-6-luna",
+    "gpt-5.4": "gpt-5.6-terra",
+    "gpt-5.5": "gpt-5.6-terra",
+    "claude-opus-4.7": "claude-opus-5.5",
+    "gemini-3.5-flash": "gemini-3.8-flash",
+    "gemini-3.6-flash": "gemini-3.8-flash",
+    "gemini-3.7-flash": "gemini-3.8-flash",
+    "mai-code-1-flash-picker": "mai-code-1.1-flash",
+  },
+  // pi 1.4.0 dropped the MiMo V2.5 line. Each V2.6 row costs the same as the
+  // V2.5 row it replaces; UltraSpeed V2.6 costs 3x more, so the V2.5 UltraSpeed
+  // pin lands on V2.6 Pro instead.
+  xiaomi: {
+    "mimo-v2.5": "mimo-v2.6-flash",
+    "mimo-v2.5-pro": "mimo-v2.6-pro",
+    "mimo-v2.5-pro-ultraspeed": "mimo-v2.6-pro",
   },
   deepseek: {
     // pi 0.87.1 names the Flash tier `deepseek-flash` (DeepSeek V4.1 Flash) and
@@ -96,7 +124,11 @@ export const MODEL_ALIASES: Partial<
   // not this table — is the authority on what it routes. `mimo-v2.5-free` is
   // `mimo-v2.6-flash-free` in pi 0.87.1: the same free tier (zero cost,
   // text+image, 200k window), so the map holds the tier.
-  opencode: { "mimo-v2.5-free": "mimo-v2.6-flash-free" },
+  // pi 1.4.0 dropped `claude-sonnet-4`; Sonnet 4.6 costs the same per token.
+  opencode: {
+    "mimo-v2.5-free": "mimo-v2.6-flash-free",
+    "claude-sonnet-4": "claude-sonnet-4-6",
+  },
   // Each row is a model pi dropped from OpenCode Go, mapped to its successor.
   // 0.99.1 dropped the glm, kimi and qwen rows, each to the same price tier.
   // 1.1.0 dropped the free `space-bunny-free` preview: `space-bunny` is the
@@ -105,11 +137,14 @@ export const MODEL_ALIASES: Partial<
   // the pin would fall to glm-5.2, which costs about 9x more.
   // 1.3.0 dropped four rows, each for its next version at the same price.
   // deepseek-v4.1-flash also takes images, so the vision pin keeps them.
+  // 1.4.0 dropped `space-bunny`; deepseek-v4.1-flash has its exact price,
+  // window and image input, so both Space Bunny ids land there.
   "opencode-go": {
     "glm-5.1": "glm-5.2",
     "kimi-k2.6": "kimi-k2.7-code",
     "qwen3.7-max": "qwen3.8-max",
-    "space-bunny-free": "space-bunny",
+    "space-bunny-free": "deepseek-v4.1-flash",
+    "space-bunny": "deepseek-v4.1-flash",
     "deepseek-v4-flash": "deepseek-v4.1-flash",
     "deepseek-v4-flash-vision-exp": "deepseek-v4.1-flash",
     "minimax-m2.7": "minimax-m3",

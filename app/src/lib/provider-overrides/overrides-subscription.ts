@@ -18,6 +18,10 @@ export const SUBSCRIPTION_OVERRIDES: Record<string, ProviderOverride> = {
       "gpt-6-sol": {
         description: "Mid GPT-6 tier. More depth than Luna for harder work.",
       },
+      "gpt-6.1-sol": {
+        description:
+          "Newest Sol. Same tier as GPT-6 Sol, handles longer conversations.",
+      },
       "gpt-6-astra": {
         description:
           "Most capable GPT-6. Uses your allowance 5x faster than Sol.",
@@ -30,9 +34,6 @@ export const SUBSCRIPTION_OVERRIDES: Record<string, ProviderOverride> = {
       },
       "gpt-5.6-luna": {
         description: "Fast and cost-efficient for simpler tasks.",
-      },
-      "gpt-5.5": {
-        description: "Previous-generation full tier, from before GPT-5.6.",
       },
     },
   },
@@ -72,8 +73,9 @@ export const SUBSCRIPTION_OVERRIDES: Record<string, ProviderOverride> = {
     auth: "oauth",
     copilotConnect: true,
     models: {
-      "gpt-5-mini": {
-        description: "Fast and lightweight. Cheapest on every Copilot plan.",
+      "gpt-6-luna": {
+        description:
+          "Fast and lightweight. Cheapest on every paid Copilot plan.",
       },
       // Sonnet 4.6 retired on Copilot 2026-09-01 (all but annual individual
       // plans); Sonnet 5 is GitHub's named replacement.
@@ -82,15 +84,15 @@ export const SUBSCRIPTION_OVERRIDES: Record<string, ProviderOverride> = {
       },
       "claude-opus-4.8": {
         description:
-          "Anthropic's flagship. Most capable, slower. Needs Copilot Pro.",
+          "Anthropic's flagship. Most capable, slower. Needs Copilot Pro+.",
       },
       "claude-haiku-4.5": {
         description: "Anthropic's fastest, for quick tasks. Needs Copilot Pro.",
       },
-      "gpt-5.5": {
-        description: "OpenAI's frontier model. Needs Copilot Pro.",
+      "gpt-5.6-terra": {
+        description: "OpenAI's balanced mid-tier model. Needs Copilot Pro.",
       },
-      "gemini-3.6-flash": {
+      "gemini-3.8-flash": {
         description: "Google's fast model. Needs Copilot Pro.",
       },
     },

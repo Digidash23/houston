@@ -16,6 +16,18 @@ test.each([
   ["openai", "Unable to forward upstream stream"],
   ["zai", "The service is temporarily unavailable"],
   ["openai-compatible", "<html><title>503 Service Temporarily Unavailable"],
+  ["openai", "upstream_request_failed"],
+  ["openai", "upstream_stream_read_error"],
+  ["openai-compatible", "The stream was interrupted"],
+  ["openrouter", "HTTP/2 stream failed"],
+  [
+    "openai-compatible",
+    "stream disconnected before completion: stream closed before response.completed",
+  ],
+  [
+    "google-vertex",
+    "request to https://oauth2.googleapis.com/token failed, reason: ",
+  ],
 ])("%s %s → provider_internal", (provider, message) => {
   expect(classifyProviderError({ provider, model: "m", message }).kind).toBe(
     "provider_internal",
@@ -50,6 +62,17 @@ test.each([
 ])("an upstream 4xx refusal is never read as an outage: %s", (message) => {
   expect(
     classifyProviderError({ provider: "openrouter", model: "m", message }).kind,
+  ).not.toBe("provider_internal");
+});
+
+test.each([
+  "upstream request failed: model not found",
+  "request to https://oauth2.googleapis.com/token failed, reason: getaddrinfo ENOTFOUND oauth2.googleapis.com",
+  "request to https://oauth2.googleapis.com/token failed, reason: connect ECONNREFUSED 127.0.0.1:443",
+])("a status-less refusal or local network failure is never read as an outage: %s", (message) => {
+  expect(
+    classifyProviderError({ provider: "google-vertex", model: "m", message })
+      .kind,
   ).not.toBe("provider_internal");
 });
 
